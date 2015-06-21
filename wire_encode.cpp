@@ -51,13 +51,12 @@ static void add_bitset(std::vector<u8> *arr, const txbitsSet &bset)
     add_linearize(bits.data(), bits.size(), arr);
 }
                 
-template<unsigned int BYTES>
 std::vector<u8> wire_encode(const bitcoin_tx &coinbase,
                             const u64 min_fee_per_byte,
                             const u64 seed,
                             const txbitsSet &added,
                             const txbitsSet &removed,
-                            const raw_iblt<BYTES> &iblt)
+                            const raw_iblt &iblt)
 {
     std::vector<u8> arr;
 
@@ -152,13 +151,12 @@ static bool pull_bitset(const u8 **p, size_t *len, txbitsSet &bset)
     return *p != NULL;
 }
 
-template<unsigned int BYTES>
-raw_iblt<BYTES> wire_decode(const std::vector<u8> &incoming,
-			    bitcoin_tx &coinbase,
-			    u64 &min_fee_per_byte,
-			    u64 &seed,
-			    txbitsSet &added,
-			    txbitsSet &removed)
+raw_iblt wire_decode(const std::vector<u8> &incoming,
+                     bitcoin_tx &coinbase,
+                     u64 &min_fee_per_byte,
+                     u64 &seed,
+                     txbitsSet &added,
+                     txbitsSet &removed)
 {
     size_t len = incoming.size();
     const u8 *p = incoming.data();
@@ -173,10 +171,10 @@ raw_iblt<BYTES> wire_decode(const std::vector<u8> &incoming,
         throw std::runtime_error("bad bitset");
 
     // Sanity check size first: forget it if it's bigger than 100M.
-    if (size > 100 * 1024 * 1024 / BYTES)
+    if (size > 100 * 1024 * 1024 / IBLT_SIZE)
         throw std::runtime_error("bad size");
 
-    raw_iblt<BYTES> iblt(size);
+    raw_iblt iblt(size);
     // Fails if not exactly the right amount left.
     if (!iblt.read(p, len))
         throw std::runtime_error("bad iblt");

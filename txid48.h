@@ -71,13 +71,13 @@ public:
 
 // To place them in unordered_set
 namespace std {
-	template <>
+    template <>
     struct hash<txid48> {
-		std::size_t operator() (const txid48 &id) const {
+                std::size_t operator() (const txid48 &id) const {
             u64 n = id.get_id();
-			// This only gives 32 bits, but ok for testing
-			return MurmurHash3(0, (const u8 *)&n, sizeof(n));
-		}
-	};
+                        // This only gives 32 bits, but ok for testing
+                        return MurmurHash3(0, (const u8 *)&n, sizeof(n));
+                }
+        };
 };
 #endif // TXID48_H

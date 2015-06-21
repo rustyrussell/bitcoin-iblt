@@ -4,24 +4,38 @@ extern "C" {
 #include <ccan/err/err.h>
 #include <ccan/str/hex/hex.h>
 #include <ccan/tal/grab_file/grab_file.h>
+#include <ccan/read_write_all/read_write_all.h>
 #include <ccan/tal/tal.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 }
 #include "mempool.h"
 #include "iblt.h"
 #include "ibltpool.h"
 #include <iostream>
-#define IBLT_SIZE 64
 
-//#include "templates.cpp"
+#define IBLT_SIZE 64
 
 struct peer {
 	mempool mp;
-	corpus_entry *corpus;
-	size_t corpus_num;
-	size_t cursor;
 	size_t decode_fail;
+	int infd;
+	const char *file;
+	struct corpus_entry e;
 
-	peer() : corpus(NULL), cursor(0), decode_fail(0) { }
+	peer() : decode_fail(0), infd(-1) { }
+
+	// FIXME: Read .xz files directly...
+	bool next_entry() {
+		return read_all(infd, &e, sizeof(e));
+	}
+	bool open(const char *filename) {
+		file = filename;
+		infd = ::open(filename, O_RDONLY);
+		return infd >= 0 && next_entry();
+	}
 };
 
 static bitcoin_txid txid_from_corpus(const struct corpus_entry &e)
@@ -62,21 +76,20 @@ static tx *get_tx(const bitcoin_txid &txid)
 static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 									  u64 seed)
 {
-	if (corpus_entry_type(p.corpus + p.cursor) != COINBASE)
+	if (corpus_entry_type(&p.e) != COINBASE)
 		errx(1, "Expected coinbase for block %zu", blocknum);
 
-	tx *cb = get_tx(txid_from_corpus(p.corpus[p.cursor]));
-	p.cursor++;
+	tx *cb = get_tx(txid_from_corpus(p.e));
 
 	std::unordered_set<const tx *> block;
 
 	// Top up mempool with any txs we didn't know, get all txs in the block.
-	while (p.cursor < p.corpus_num) {
-		switch (corpus_entry_type(p.corpus + p.cursor)) {
+	while (p.next_entry()) {
+		switch (corpus_entry_type(&p.e)) {
 		// These two cover the entire block contents.
 		case UNKNOWN:
 		case KNOWN: {
-			bitcoin_txid txid = txid_from_corpus(p.corpus[p.cursor]);
+			bitcoin_txid txid = txid_from_corpus(p.e);
 			tx *t;
 
 			t = p.mp.find(txid); 
@@ -90,7 +103,6 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 		default:
 			goto out;
 		}
-		p.cursor++;
 	}
 
   out:
@@ -118,8 +130,7 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 	txbitsSet removed;
 
 	// Now, build iblt.
-	raw_iblt<IBLT_SIZE> riblt(maxbytes / raw_iblt<IBLT_SIZE>::WIRE_BYTES,
-							  seed, block);
+	raw_iblt riblt(maxbytes / raw_iblt::WIRE_BYTES, seed, block);
 
 	return wire_encode(*cb->btx, min_fee_per_byte, seed, added, removed, riblt);
 }
@@ -131,7 +142,7 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	u64 seed;
 	txbitsSet added, removed;
 
-	raw_iblt<IBLT_SIZE> their_riblt = wire_decode<IBLT_SIZE>(in, cb, min_fee_per_byte, seed, added, removed);
+	raw_iblt their_riblt = wire_decode(in, cb, min_fee_per_byte, seed, added, removed);
 
 	// Create ids from my mempool, using their seed.
 	ibltpool pool(seed, p.mp);
@@ -170,20 +181,20 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	}
 
 	// Put this into a raw iblt.
-	raw_iblt<IBLT_SIZE> our_riblt(their_riblt.size(), seed, candidates);
+	raw_iblt our_riblt(their_riblt.size(), seed, candidates);
 
 	// Create iblt with differences.
-	iblt<IBLT_SIZE> diff(their_riblt, our_riblt);
+	iblt diff(their_riblt, our_riblt);
 
-	iblt<IBLT_SIZE>::bucket_type t;
-	txslice<IBLT_SIZE> s;
+	iblt::bucket_type t;
+	txslice s;
 
 	// For each txid48, we keep all the fragments.
-	std::set<txslice<IBLT_SIZE>> slices;
+	std::set<txslice> slices;
 
 	// While there are still singleton buckets...
-	while ((t = diff.next(s)) != iblt<IBLT_SIZE>::NEITHER) {
-		if (t == iblt<IBLT_SIZE>::OURS) {
+	while ((t = diff.next(s)) != iblt::NEITHER) {
+		if (t == iblt::OURS) {
 			auto it = pool.tx_by_txid48.find(s.get_txid48());
 			// If we can't find it, we're probably corrupt already, but
 			// ignore it and try to keep going.
@@ -191,7 +202,7 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 				// Remove entire tx.
 				diff.remove(*it->second->btx, s.get_txid48());
 			}
-		} else if (t == iblt<IBLT_SIZE>::THEIRS) {
+		} else if (t == iblt::THEIRS) {
 			slices.insert(s);
 			diff.remove(s);
 		}
@@ -204,14 +215,14 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 
 	// Try to assemble the slices into txs.
 	size_t count = 0;
-	std::vector<txslice<IBLT_SIZE>> transaction;
+	std::vector<txslice> transaction;
 
 	for (const auto &s: slices) {
 		if (count == 0) {
 			size_t num = s.slices_expected();
 			if (!num || num > 0xFFFF)
 				return false;
-			transaction = std::vector<txslice<IBLT_SIZE>>(num);
+			transaction = std::vector<txslice>(num);
 			transaction[0] = s;
 			count = 1;
 		} else {
@@ -238,16 +249,12 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 
 static void forward_to_block(peer &p, size_t blocknum)
 {
-	while (p.cursor < p.corpus_num) {
-		switch (corpus_entry_type(p.corpus + p.cursor)) {
-		case COINBASE:
-			if (corpus_blocknum(p.corpus + p.cursor) == blocknum)
-				return;
-		default:
-			p.cursor++;
+	while (corpus_entry_type(&p.e) != COINBASE
+		   || corpus_blocknum(&p.e) != blocknum) {
+		if (!p.next_entry()) {
+			errx(1, "No block number %zu for peer %s", blocknum, p.file);
 		}
 	}
-	errx(1, "Could not find block number %zu", blocknum);
 }
 
 int main(int argc, char *argv[])
@@ -262,11 +269,11 @@ int main(int argc, char *argv[])
 	size_t num_pools = argc - 2;
 	std::vector<peer> peers(num_pools);
 
-	size_t argnum = 3;
+	size_t argnum = 2;
 	// Get corpuses.  Hope you have plenty of memory!
 	for (auto &p : peers) {
-		p.corpus = (corpus_entry *)grab_file(NULL, argv[argnum]);
-		p.corpus_num = tal_count(p.corpus) / sizeof(*p.corpus);
+		if (!p.open(argv[argnum++]))
+			err(1, "Opening %s", argv[argnum-1]);
 		forward_to_block(p, blocknum);
 	}
 

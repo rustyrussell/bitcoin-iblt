@@ -7,11 +7,9 @@
 #include <set>
 #include <unordered_set>
 
-template<unsigned int BYTES> class iblt;
 class tx;
 
 // Raw IBLT for handing over the wire.
-template<unsigned int BYTES>
 class raw_iblt {
 public:
     // Empty IBLT
@@ -30,25 +28,25 @@ public:
 
     // Overhead on the wire for each bucket (6 txid48, 2 fragid, 2 counter)
     static const std::size_t OVERHEAD = 6 + 2 + 2;
-    static const std::size_t WIRE_BYTES = BYTES + OVERHEAD;
+    static const std::size_t WIRE_BYTES = IBLT_SIZE + OVERHEAD;
 
 private:
-    friend class iblt<BYTES>;
+    friend class iblt;
 
     // Put slice into a single bucket (or remove, if dir = -1)
-    void frob_bucket(size_t bucket, const txslice<BYTES> &s, int dir);
+    void frob_bucket(size_t bucket, const txslice &s, int dir);
 
     // Put slice into all its buckets (or remove, if dir = -1)
-    void frob_buckets(const txslice<BYTES> &s, int dir);
+    void frob_buckets(const txslice &s, int dir);
 
     // For iblt to open-code frob_bucket() calls
-    std::vector<size_t> select_buckets(const txslice<BYTES> &s);
+    std::vector<size_t> select_buckets(const txslice &s);
 
     // Convenience wrappers for above.
-    void insert(const txslice<BYTES> &s);
-    void remove(const txslice<BYTES> &s);
+    void insert(const txslice &s);
+    void remove(const txslice &s);
 
-    std::vector<txslice<BYTES>> buckets;
+    std::vector<txslice> buckets;
     std::vector<s16> counts;
 };
 #endif // RAWIBLT_H

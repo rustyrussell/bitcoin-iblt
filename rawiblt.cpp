@@ -12,8 +12,7 @@
 /* Kalle Rosenbaum showed 3 was good enough. */
 #define NUM_HASHES 3
 
-template <unsigned int BYTES>
-void raw_iblt<BYTES>::frob_bucket(size_t n, const txslice<BYTES> &s, int dir)
+void raw_iblt::frob_bucket(size_t n, const txslice &s, int dir)
 {
     u8 *dest = buckets[n].as_bytes();
     const u8 *src = s.as_bytes();
@@ -24,8 +23,7 @@ void raw_iblt<BYTES>::frob_bucket(size_t n, const txslice<BYTES> &s, int dir)
 }
 
 // FIXME: Use std::array
-template <unsigned int BYTES>
-std::vector<size_t> raw_iblt<BYTES>::select_buckets(const txslice<BYTES> &s)
+std::vector<size_t> raw_iblt::select_buckets(const txslice &s)
 {
 	std::vector<size_t> buckets(NUM_HASHES);
 	
@@ -37,8 +35,7 @@ std::vector<size_t> raw_iblt<BYTES>::select_buckets(const txslice<BYTES> &s)
 	return buckets;
 }
 
-template <unsigned int BYTES>
-void raw_iblt<BYTES>::frob_buckets(const txslice<BYTES> &s, int dir)
+void raw_iblt::frob_buckets(const txslice &s, int dir)
 {
     std::vector<size_t> buckets = select_buckets(s);
     for (size_t i = 0; i < buckets.size(); i++) {
@@ -46,44 +43,38 @@ void raw_iblt<BYTES>::frob_buckets(const txslice<BYTES> &s, int dir)
     }
 }
 
-template <unsigned int BYTES>
-void raw_iblt<BYTES>::insert(const txslice<BYTES> &s)
+void raw_iblt::insert(const txslice &s)
 {
     frob_buckets(s, 1);
 }
 
-template <unsigned int BYTES>
-void raw_iblt<BYTES>::remove(const txslice<BYTES> &s)
+void raw_iblt::remove(const txslice &s)
 {
     frob_buckets(s, -1);
 }
 
-template <unsigned int BYTES>
-size_t raw_iblt<BYTES>::size() const
+size_t raw_iblt::size() const
 {
     return buckets.size();
 }
     
-template <unsigned int BYTES>
-raw_iblt<BYTES>::raw_iblt(size_t size)
+raw_iblt::raw_iblt(size_t size)
     : buckets(size), counts(size)
 {
 }
 
-template <unsigned int BYTES>
-raw_iblt<BYTES>::raw_iblt(size_t size, u64 seed,
+raw_iblt::raw_iblt(size_t size, u64 seed,
 						  const std::unordered_set<const tx *> &txs)
     : buckets(size), counts(size)
 {
     for (const auto &t : txs) {
-        for (const auto &s : slice_tx<BYTES>(*t->btx, txid48(seed, t->btx->txid()))) {
+        for (const auto &s : slice_tx(*t->btx, txid48(seed, t->btx->txid()))) {
             insert(s);
         }
     }
 }
 
-template <unsigned int BYTES>
-std::vector<u8> raw_iblt<BYTES>::write() const
+std::vector<u8> raw_iblt::write() const
 {
     size_t buckets_len = size() * buckets[0].size(), counts_len = size() * sizeof(counts[0]);
     std::vector<u8> vec(counts_len + buckets_len);
@@ -95,8 +86,7 @@ std::vector<u8> raw_iblt<BYTES>::write() const
 }
 
         
-template <unsigned int BYTES>
-bool raw_iblt<BYTES>::read(const u8 *p, size_t len)
+bool raw_iblt::read(const u8 *p, size_t len)
 {
     size_t buckets_len = size() * buckets[0].size(), counts_len = size() * sizeof(counts[0]);
     if (len != counts_len + buckets_len)

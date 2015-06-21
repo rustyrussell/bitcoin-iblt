@@ -32,11 +32,10 @@ public:
 	size_t next(size_t next_todo);
 };
 
-template<unsigned int BYTES>
 class iblt {
 public:
 	// Construct by subtracting two raw IBLTs.
-	iblt(const raw_iblt<BYTES> &theirs, const raw_iblt<BYTES> &ours);
+	iblt(const raw_iblt &theirs, const raw_iblt &ours);
 
 	// Two kind of buckets are interesting: count == 1 (in theirs, not ours)
 	// and count == -1 (in ours, not theirs).
@@ -47,13 +46,13 @@ public:
 	};
 	
 	// Extract data from a slice (destructive).  Returns NEITHER if none avail.
-	bucket_type next(txslice<BYTES> &b);
+	bucket_type next(txslice &b);
 
 	// All done?  Not very cheap, so only call after next() fails.
 	bool empty() const;
 
 	// Remove a single slice.
-	void remove(const txslice<BYTES> &s);
+	void remove(const txslice &s);
 
 	// Remove an entire tx.
 	void remove(const struct bitcoin_tx &btx, const txid48 &id);
@@ -66,7 +65,7 @@ private:
 	iblt_todo todo[THEIRS + 1];
 
 	// Raw IBLT.
-	raw_iblt<BYTES> riblt;
+	raw_iblt riblt;
 };
 
 #endif // IBLT_H

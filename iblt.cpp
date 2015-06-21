@@ -44,8 +44,7 @@ size_t iblt_todo::next(size_t next_todo)
     return *todo[next_todo].begin();
 }
 
-template <unsigned int BYTES>
-iblt<BYTES>::iblt(const raw_iblt<BYTES> &theirs, const raw_iblt<BYTES> &ours)
+iblt::iblt(const raw_iblt &theirs, const raw_iblt &ours)
     : riblt(theirs)
 {
     if (ours.size() != theirs.size()) {
@@ -69,8 +68,7 @@ iblt<BYTES>::iblt(const raw_iblt<BYTES> &theirs, const raw_iblt<BYTES> &ours)
     }
 }
 
-template <unsigned int BYTES>
-void iblt<BYTES>::add_todo_if_singleton(size_t n)
+void iblt::add_todo_if_singleton(size_t n)
 {
     enum bucket_type t;
 
@@ -87,8 +85,7 @@ void iblt<BYTES>::add_todo_if_singleton(size_t n)
     todo[t].add(riblt.buckets[n].fragid - id.frag_base(), n);
 }
 
-template <unsigned int BYTES>
-void iblt<BYTES>::remove_todo_if_singleton(size_t n)
+void iblt::remove_todo_if_singleton(size_t n)
 {
     enum bucket_type t;
 
@@ -105,8 +102,7 @@ void iblt<BYTES>::remove_todo_if_singleton(size_t n)
     todo[t].del(riblt.buckets[n].fragid - id.frag_base(), n);
 }
 
-template <unsigned int BYTES>
-enum iblt<BYTES>::bucket_type iblt<BYTES>::next(txslice<BYTES> &s)
+enum iblt::bucket_type iblt::next(txslice &s)
 {
     size_t our_best_prio, their_best_prio, n;
     bucket_type t;
@@ -151,8 +147,7 @@ enum iblt<BYTES>::bucket_type iblt<BYTES>::next(txslice<BYTES> &s)
     return t;
 }
 
-template <unsigned int BYTES>
-bool iblt<BYTES>::empty() const
+bool iblt::empty() const
 {
     for (size_t i = 0; i < riblt.size(); i++) {
         if (riblt.counts[i]) {
@@ -165,17 +160,15 @@ bool iblt<BYTES>::empty() const
     return true;
 }
 
-template <unsigned int BYTES>
-void iblt<BYTES>::remove(const struct bitcoin_tx &btx, const txid48 &id)
+void iblt::remove(const struct bitcoin_tx &btx, const txid48 &id)
 {
-    std::vector<txslice<BYTES>> v = slice_tx<BYTES>(btx, id);
+    std::vector<txslice> v = slice_tx(btx, id);
     for (const auto &s : v) {
         remove(s);
     }
 }
 
-template <unsigned int BYTES>
-void iblt<BYTES>::remove(const txslice<BYTES> &s)
+void iblt::remove(const txslice &s)
 {
     riblt.remove(s);
 }
