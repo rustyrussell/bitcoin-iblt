@@ -74,7 +74,7 @@ std::vector<txslice> slice_tx(const bitcoin_tx &btx, const txid48 &id)
     slice_state s = { 0, 0, vec };
 
     // We 0 pad the end.
-    memset(vec.end()->contents, 0, sizeof(vec.end()->contents));
+    memset(vec[n_slices-1].contents, 0, sizeof(vec[n_slices-1].contents));
     for (size_t i = 0; i < vec.size(); ++i) {
         vec[i].txidbits = id.get_id();
         assert(vec[i].txidbits == id.get_id());
@@ -84,7 +84,7 @@ std::vector<txslice> slice_tx(const bitcoin_tx &btx, const txid48 &id)
     // Now linearize into it.
     add_varint(n_slices, add_slice, &s);
     btx.add_tx(add_slice, &s);
-    assert(s.index == vec.size() - 1);
+    assert(s.index == vec.size() - 1 || (s.index == vec.size() && s.off == 0));
 
     return vec;
 }
