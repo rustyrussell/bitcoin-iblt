@@ -71,7 +71,7 @@ void ibltpool::add(const txid48 &id48, const tx *t)
 }
 
 ibltpool::ibltpool(u64 s, const mempool &mp)
-	: seed(s)
+	: seed(s), tree(new tx_node())
 {
 	for (const auto &p : mp.tx_by_txid) {
 		add(txid48(seed, p.first), p.second);
