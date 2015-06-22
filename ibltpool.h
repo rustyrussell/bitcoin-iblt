@@ -13,6 +13,7 @@ private:
     
 public:
     // For building it when generating actual block.
+    // FIXME: Handle clashes!
     ibltpool(u64 seed, const mempool &mp);
 
     ~ibltpool();

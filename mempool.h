@@ -20,6 +20,9 @@ public:
     void add(tx *t) {
         tx_by_txid.insert(std::make_pair(t->txid, t));
     }
+    bool del(const bitcoin_txid &txid) {
+        return tx_by_txid.erase(txid) != 0;
+    }
 
     // Membership check.
     tx *find(const bitcoin_txid &id);

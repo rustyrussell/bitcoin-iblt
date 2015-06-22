@@ -41,7 +41,10 @@ struct peer {
 static bitcoin_txid txid_from_corpus(const struct corpus_entry &e)
 {
 	bitcoin_txid txid;
-	memcpy(txid.shad.sha.u.u8, e.txid.id, sizeof(txid.shad.sha.u.u8));
+	/* Corpus txids are backwards :( */
+	for (size_t n = 0; n < sizeof(e.txid.id); n++) {
+		txid.shad.sha.u.u8[sizeof(e.txid.id)-1-n] = e.txid.id[n];
+	}
 	return txid;
 }
 
@@ -52,6 +55,7 @@ static tx *get_tx(const bitcoin_txid &txid)
 	const u8 *txbytes;
 	size_t len;
 	u64 fee;
+	tx *t;
 
 	txstring = filename + strlen("txcache/");
 	if (!hex_encode(txid.shad.sha.u.u8, sizeof(txid.shad.sha.u.u8),
@@ -70,7 +74,9 @@ static tx *get_tx(const bitcoin_txid &txid)
 	memcpy(&fee, txbytes, 8);
 	txbytes += 8;
 	len -= 8;
-	return new tx(fee, new bitcoin_tx(&txbytes, &len));
+	t = new tx(fee, new bitcoin_tx(&txbytes, &len));
+	assert(t->txid == txid);
+	return t;
 }
 
 static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
@@ -85,18 +91,22 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 
 	// Top up mempool with any txs we didn't know, get all txs in the block.
 	while (p.next_entry()) {
+		tx *t;
+
 		switch (corpus_entry_type(&p.e)) {
 		// These two cover the entire block contents.
-		case UNKNOWN:
-		case KNOWN: {
+		case UNKNOWN: {
 			bitcoin_txid txid = txid_from_corpus(p.e);
-			tx *t;
 
-			t = p.mp.find(txid); 
-			if (!t) {
-				t = get_tx(txid);
-				p.mp.add(t);
-			}
+			assert(!p.mp.find(txid));
+
+			t = get_tx(txid);
+			p.mp.add(t);
+			block.insert(t);
+			break;
+		}
+		case KNOWN: {
+			t = p.mp.find(txid_from_corpus(p.e));
 			block.insert(t);
 			break;
 		}
@@ -123,6 +133,9 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 			txid48 id48(seed, txp->txid);
 			std::vector<bool> bvec = pool.get_unique_bitid(id48);
 			added[bvec.size()].insert(bvec);
+			std::cout << "Added exception " << txp->txid << std::endl;
+		} else {
+			std::cout << "Added normal " << txp->txid << std::endl;
 		}
 	}
 
@@ -131,6 +144,7 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 
 	// Now, build iblt.
 	raw_iblt riblt(maxbytes / raw_iblt::WIRE_BYTES, seed, block);
+	std::cout << "Built riblt with buckets " << riblt.size() << std::endl;
 
 	return wire_encode(*cb->btx, min_fee_per_byte, seed, added, removed, riblt);
 }
@@ -154,6 +168,7 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	for (auto it = pool.tx_by_value.lower_bound(min_fee_per_byte);
 		 it != pool.tx_by_value.end();
 		 ++it) {
+		std::cout << std::string(p.file) << ": inserting " << it->second->txid << std::endl;
 		candidates.insert(it->second);
 	}
 
@@ -175,6 +190,7 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 			for (const auto &t: pool.get_txs(vec)) {
 				if (t->satoshi_per_byte() < min_fee_per_byte) {
 					candidates.insert(t);
+					std::cout << std::string(p.file) << ": inserting extra " << t->txid << std::endl;
 				}
 			}
 		}
@@ -210,6 +226,7 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 
 	// If we didn't empty it, we've failed decode.
 	if (!diff.empty()) {
+		std::cout << std::string(p.file) << " decoding block left non-empty iblt" << std::endl;
 		return false;
 	}
 
@@ -228,10 +245,12 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 		} else {
 			// Missing part of transaction?
 			if (s.txidbits != transaction[count-1].txidbits) {
+				std::cout << std::string(p.file) << " decoding block missed transaction fragment" << std::endl;
 				return false;
 			}
 			// Fragment id wrong?
 			if (s.fragid != transaction[count-1].fragid + 1) {
+				std::cout << std::string(p.file) << " decoding block missed transaction fragment" << std::endl;
 				return false;
 			}
 			transaction[count++] = s;
@@ -243,18 +262,80 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 		}
 	}
 
+	if (count == 0)
+		std::cout << std::string(p.file) << " decoding block SUCCESS" << std::endl;
+	else
+		std::cout << std::string(p.file) << " decoding block left a fragment" << std::endl;
 	// Some left over?
 	return count == 0;
 }
 
+// We sync the mempool at the block before.
 static void forward_to_block(peer &p, size_t blocknum)
 {
-	while (corpus_entry_type(&p.e) != COINBASE
-		   || corpus_blocknum(&p.e) != blocknum) {
-		if (!p.next_entry()) {
-			errx(1, "No block number %zu for peer %s", blocknum, p.file);
+	bool prev_block = false;
+	do {
+		if (txid_from_corpus(p.e).shad.sha.u.u32[0] == 3042942252) {
+			std::cout << std::string(p.file) << ":" << corpus_blocknum(&p.e) << ":"
+					  << (corpus_entry_type(&p.e) == COINBASE ? "COINBASE"
+						  : corpus_entry_type(&p.e) == INCOMING_TX ? "INCOMING"
+						  : corpus_entry_type(&p.e) == MEMPOOL_ONLY ? "MEMPOOL"
+						  : corpus_entry_type(&p.e) == KNOWN ? "KNOWN"
+						  : "UNKNOWN")
+					  << ":" << prev_block << ":" << txid_from_corpus(p.e) << std::endl;
+			
+		}
+		switch (corpus_entry_type(&p.e)) {
+		case COINBASE:
+			if (corpus_blocknum(&p.e) == blocknum) {
+				return;
+			}
+			assert(!prev_block);
+			prev_block = (corpus_blocknum(&p.e) == blocknum - 1);
+			break;
+		case INCOMING_TX:
+		case MEMPOOL_ONLY:
+			if (prev_block) {
+				// Add this to the mempool
+//				std::cout << std::string(p.file) << ": adding " << (corpus_entry_type(&p.e) == INCOMING_TX ? "incoming " : "mempool ") << txid_from_corpus(p.e) << std::endl;
+				p.mp.add(get_tx(txid_from_corpus(p.e)));
+				assert(p.mp.find(txid_from_corpus(p.e)));
+			}
+			break;
+		case KNOWN:
+		case UNKNOWN:
+			break;
+		}
+	} while (p.next_entry());
+	errx(1, "No block number %zu for peer %s", blocknum, p.file);
+}
+
+static void next_block(peer &p)
+{
+	// Keep going until next coinbase;
+	while (p.next_entry()) {
+		switch (corpus_entry_type(&p.e)) {
+		case COINBASE:
+			return;
+		case INCOMING_TX:
+			// Add this to the mempool
+			p.mp.add(get_tx(txid_from_corpus(p.e)));
+			break;
+		case KNOWN:
+			// It was in block, so remove from mempool.
+			if (!p.mp.del(txid_from_corpus(p.e))) {
+				errx(1, "Peer %s has bad txid in block?", p.file);
+			}
+			break;
+		case MEMPOOL_ONLY:
+			assert(p.mp.find(txid_from_corpus(p.e)));
+			break;
+		case UNKNOWN:
+			assert(!p.mp.find(txid_from_corpus(p.e)));
+			break;
 		}
 	}
+	errx(1, "No next block for peer %s", p.file);
 }
 
 int main(int argc, char *argv[])
@@ -288,7 +369,7 @@ int main(int argc, char *argv[])
 		blocknum++;
 
 		for (auto &p : peers)
-			forward_to_block(p, blocknum);
+			next_block(p);
 	} while (blocknum != end);
 
 	for (size_t i = 1; i < num_pools; i++) {
