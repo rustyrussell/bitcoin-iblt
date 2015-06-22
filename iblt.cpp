@@ -21,10 +21,13 @@ void iblt_todo::add(u16 fragoff, size_t bucket)
     }
 }
 
-void iblt_todo::del(u16 fragoff, size_t bucket)
+void iblt_todo::del(u16 fragoff, size_t bucket, bool manual)
 {
-    if (!get_todo(fragoff).erase(bucket)) {
+    if (!get_todo(fragoff).erase(bucket) && !manually_removed) {
         throw std::runtime_error("Bucket not in todo");
+    }
+    if (manual) {
+        manually_removed = true;
     }
 }
 
@@ -39,7 +42,7 @@ size_t iblt_todo::next_todo() const
     return (size_t)-1;
 }
 
-size_t iblt_todo::next(size_t next_todo)
+size_t iblt_todo::next(size_t next_todo) const
 {
     return *todo[next_todo].begin();
 }
@@ -97,12 +100,23 @@ void iblt::remove_todo_if_singleton(size_t n)
         return;
     }
 
-    // Offset by fragment index base, and add to todo list.
+    // Offset by fragment index base, and remove from todo list.
     txid48 id = riblt.buckets[n].get_txid48();
     todo[t].del(riblt.buckets[n].fragid - id.frag_base(), n);
 }
 
-enum iblt::bucket_type iblt::next(txslice &s)
+void iblt::frob_buckets(const txslice &s, int dir)
+{
+    std::vector<size_t> buckets = riblt.select_buckets(s);
+    for (size_t i = 0; i < buckets.size(); i++) {
+        // We're about to change count; may take it off todo.
+        remove_todo_if_singleton(buckets[i]);
+        riblt.frob_bucket(buckets[i], s, dir);
+        add_todo_if_singleton(buckets[i]);
+    }
+}
+
+enum iblt::bucket_type iblt::next(txslice &s) const
 {
     size_t our_best_prio, their_best_prio, n;
     bucket_type t;
@@ -128,23 +142,19 @@ enum iblt::bucket_type iblt::next(txslice &s)
 
     assert(riblt.counts[n] == -dir);
 
-    // Take a copy before we erase it.
+    // Take a copy.
     s = riblt.buckets[n];
-
-    std::vector<size_t> bucket_nums = riblt.select_buckets(s);
-
-    // We should be cancelling that bucket!
-    assert(std::find(bucket_nums.begin(), bucket_nums.end(), n) != bucket_nums.end());
-    
-    for (size_t i = 0; i < bucket_nums.size(); i++) {
-        // We're about to change count; may take it off todo.
-        remove_todo_if_singleton(bucket_nums[i]);
-        riblt.frob_bucket(bucket_nums[i], s, dir);
-        add_todo_if_singleton(bucket_nums[i]);
-    }
 
     // So they know whether it's a positive or negative.
     return t;
+}
+
+void iblt::remove_todo(bucket_type t, const txslice &s)
+{
+    size_t n = todo[t].next(todo[t].next_todo());
+
+    txid48 id = s.get_txid48();
+    todo[t].del(s.fragid - id.frag_base(), n, true);
 }
 
 bool iblt::empty() const
@@ -160,15 +170,15 @@ bool iblt::empty() const
     return true;
 }
 
-void iblt::remove(const struct bitcoin_tx &btx, const txid48 &id)
+void iblt::remove_our_tx(const struct bitcoin_tx &btx, const txid48 &id)
 {
     std::vector<txslice> v = slice_tx(btx, id);
     for (const auto &s : v) {
-        remove(s);
+        frob_buckets(s, 1);
     }
 }
 
-void iblt::remove(const txslice &s)
+void iblt::remove_their_slice(const txslice &s)
 {
-    riblt.remove(s);
+    frob_buckets(s, -1);
 }

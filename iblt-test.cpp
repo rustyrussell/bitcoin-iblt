@@ -133,9 +133,6 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 			txid48 id48(seed, txp->txid);
 			std::vector<bool> bvec = pool.get_unique_bitid(id48);
 			added[bvec.size()].insert(bvec);
-			std::cout << "Added exception " << txp->txid << std::endl;
-		} else {
-			std::cout << "Added normal " << txp->txid << std::endl;
 		}
 	}
 
@@ -144,7 +141,6 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 
 	// Now, build iblt.
 	raw_iblt riblt(maxbytes / raw_iblt::WIRE_BYTES, seed, block);
-	std::cout << "Built riblt with buckets " << riblt.size() << std::endl;
 
 	return wire_encode(*cb->btx, min_fee_per_byte, seed, added, removed, riblt);
 }
@@ -168,7 +164,6 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	for (auto it = pool.tx_by_value.lower_bound(min_fee_per_byte);
 		 it != pool.tx_by_value.end();
 		 ++it) {
-		std::cout << std::string(p.file) << ": inserting " << it->second->txid << std::endl;
 		candidates.insert(it->second);
 	}
 
@@ -190,7 +185,6 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 			for (const auto &t: pool.get_txs(vec)) {
 				if (t->satoshi_per_byte() < min_fee_per_byte) {
 					candidates.insert(t);
-					std::cout << std::string(p.file) << ": inserting extra " << t->txid << std::endl;
 				}
 			}
 		}
@@ -212,21 +206,27 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	while ((t = diff.next(s)) != iblt::NEITHER) {
 		if (t == iblt::OURS) {
 			auto it = pool.tx_by_txid48.find(s.get_txid48());
-			// If we can't find it, we're probably corrupt already, but
-			// ignore it and try to keep going.
-			if (it != pool.tx_by_txid48.end()) {
+			// If we can't find it, we're corrupt.
+			// FIXME: Maybe keep going?.
+			if (it == pool.tx_by_txid48.end()) {
+				return false;
+			} else {
 				// Remove entire tx.
-				diff.remove(*it->second->btx, s.get_txid48());
+				diff.remove_our_tx(*it->second->btx, s.get_txid48());
+				// Make sure we make progress: remove it from consideration.
+				pool.tx_by_txid48.erase(s.get_txid48());
 			}
 		} else if (t == iblt::THEIRS) {
-			slices.insert(s);
-			diff.remove(s);
+			// Gave us the same slice twice?  Fail.
+			if (!slices.insert(s).second) {
+				return false;
+			}
+			diff.remove_their_slice(s);
 		}
 	}
 
 	// If we didn't empty it, we've failed decode.
 	if (!diff.empty()) {
-		std::cout << std::string(p.file) << " decoding block left non-empty iblt" << std::endl;
 		return false;
 	}
 
@@ -245,12 +245,10 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 		} else {
 			// Missing part of transaction?
 			if (s.txidbits != transaction[count-1].txidbits) {
-				std::cout << std::string(p.file) << " decoding block missed transaction fragment" << std::endl;
 				return false;
 			}
 			// Fragment id wrong?
 			if (s.fragid != transaction[count-1].fragid + 1) {
-				std::cout << std::string(p.file) << " decoding block missed transaction fragment" << std::endl;
 				return false;
 			}
 			transaction[count++] = s;
@@ -275,16 +273,6 @@ static void forward_to_block(peer &p, size_t blocknum)
 {
 	bool prev_block = false;
 	do {
-		if (txid_from_corpus(p.e).shad.sha.u.u32[0] == 3042942252) {
-			std::cout << std::string(p.file) << ":" << corpus_blocknum(&p.e) << ":"
-					  << (corpus_entry_type(&p.e) == COINBASE ? "COINBASE"
-						  : corpus_entry_type(&p.e) == INCOMING_TX ? "INCOMING"
-						  : corpus_entry_type(&p.e) == MEMPOOL_ONLY ? "MEMPOOL"
-						  : corpus_entry_type(&p.e) == KNOWN ? "KNOWN"
-						  : "UNKNOWN")
-					  << ":" << prev_block << ":" << txid_from_corpus(p.e) << std::endl;
-			
-		}
 		switch (corpus_entry_type(&p.e)) {
 		case COINBASE:
 			if (corpus_blocknum(&p.e) == blocknum) {
@@ -297,7 +285,6 @@ static void forward_to_block(peer &p, size_t blocknum)
 		case MEMPOOL_ONLY:
 			if (prev_block) {
 				// Add this to the mempool
-//				std::cout << std::string(p.file) << ": adding " << (corpus_entry_type(&p.e) == INCOMING_TX ? "incoming " : "mempool ") << txid_from_corpus(p.e) << std::endl;
 				p.mp.add(get_tx(txid_from_corpus(p.e)));
 				assert(p.mp.find(txid_from_corpus(p.e)));
 			}

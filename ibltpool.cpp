@@ -67,7 +67,8 @@ void ibltpool::add(const txid48 &id48, const tx *t)
 	struct tx_with_id48 *txwid48 = new tx_with_id48(id48, t);
 
 	tx_by_value.insert(std::make_pair(t->satoshi_per_byte(), t));
-	tree->insert(txwid48);
+    tx_by_txid48.insert(std::make_pair(id48, t));
+    tree->insert(txwid48);
 }
 
 ibltpool::ibltpool(u64 s, const mempool &mp)

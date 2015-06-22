@@ -1,6 +1,6 @@
 CCANDIR := ../ccan
 CFLAGS := -Wall -I$(CCANDIR) -g
-CXXFLAGS := $(CFLAGS) -I../bitcoin-corpus -std=c++11 -DIBLT_SIZE=64
+CXXFLAGS := $(CFLAGS) -I../bitcoin-corpus -std=c++11 -D_GLIBCXX_DEBUG -DIBLT_SIZE=64
 OBJS := iblt-test.o iblt.o mempool.o sha256_double.o bitcoin_tx.o txslice.o murmur.o wire_encode.o ibltpool.o txslice.o rawiblt.o
 HEADERS := iblt.h mempool.h sha256_double.h txid48.h bitcoin_tx.h txslice.h murmur.h wire_encode.h
 
