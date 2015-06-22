@@ -15,7 +15,7 @@ private:
 	static const size_t SOON = 1U << SOON_LOG2;
 
 	// First contain fragids 0 to SOON-1, then powers of 2.
-	std::set<size_t> todo[SOON + 16 - SOON_LOG2];
+	std::set<size_t> todo[SOON + 16 + 1];
 
 	// Get the todo list for this frag offset
 	std::set<size_t> &get_todo(u16 fragoff);
