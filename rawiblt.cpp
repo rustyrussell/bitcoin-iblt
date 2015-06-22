@@ -29,7 +29,7 @@ std::vector<size_t> raw_iblt::select_buckets(const txslice &s)
 	
 	for (size_t i = 0; i < buckets.size(); i++) {
         // FIXME: Can skip divide if we force buckets to power of 2.
-        buckets[i] = MurmurHash3(i, s.as_bytes(), s.size()) % buckets.size();
+        buckets[i] = MurmurHash3(i, s.as_bytes(), s.size()) % size();
     }
 
 	return buckets;
