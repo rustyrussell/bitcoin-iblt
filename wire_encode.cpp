@@ -23,9 +23,16 @@ static void add_bitset(std::vector<u8> *arr, const txbitsSet &bset)
             max = i;
     }
 
-    // First we write out min and max sizes of bitstrings.
+    // Empty set?  Encode as 0, with 0 length.
+    if (max < min) {
+        add_varint(0, add_linearize, arr);
+        add_varint(0, add_linearize, arr);
+        return;
+    }
+
+    // First we write out min and number of bitstrings.
     add_varint(min, add_linearize, arr);
-    add_varint(max, add_linearize, arr);
+    add_varint(max - min + 1, add_linearize, arr);
 
     // Now we write out the number for each of those
     size_t num_bits = 0;
@@ -98,25 +105,25 @@ static bool pull_bit(const u8 **p, size_t *len, unsigned int *bitoff)
 
 static bool pull_bitset(const u8 **p, size_t *len, txbitsSet &bset)
 {
-    varint_t min, max;
+    varint_t min, num;
 
     // First we get min and max sizes of bitstrings.
     min = pull_varint(p, len);
-    max = pull_varint(p, len);
+    num = pull_varint(p, len);
 
     // Empty set?  Might as well stop here.
-    if (min >= max) {
+    if (!num) {
         bset = txbitsSet();
         return true;
     }
 
-    bset = txbitsSet(max + 1);
-    std::vector<varint_t> num(max + 1);
+    bset = txbitsSet(min + num);
+    std::vector<varint_t> nums(min + num);
 
     // Now we read in the number for each of those
-    for (size_t i = min; i < bset.size(); i++) {
-        num[i] = pull_varint(p, len);
-        bset[i] = std::unordered_set<std::vector<bool>>(num[i]);
+    for (size_t i = min; i < min + num; i++) {
+        nums[i] = pull_varint(p, len);
+        bset[i] = std::unordered_set<std::vector<bool>>(nums[i]);
     }
 
     // Already failed?  Stop here. */
@@ -125,8 +132,8 @@ static bool pull_bitset(const u8 **p, size_t *len, txbitsSet &bset)
 
     // Now pull bits off the bitset for each of them.
     unsigned int bitoff = 0;
-    for (size_t i = min; i < max; i++) {
-        for (size_t j = 0; j < num[i]; j++) {
+    for (size_t i = min; i < min + num; i++) {
+        for (size_t j = 0; j < nums[i]; j++) {
             std::vector<bool> v(i);
             for (size_t k = 0; k < i; k++) {
                 if (pull_bit(p, len, &bitoff)) {
