@@ -36,6 +36,8 @@ struct peer {
 		infd = ::open(filename, O_RDONLY);
 		return infd >= 0 && next_entry();
 	}
+
+	std::unordered_set<bitcoin_txid> unknown;
 };
 
 static bitcoin_txid txid_from_corpus(const struct corpus_entry &e)
@@ -48,7 +50,7 @@ static bitcoin_txid txid_from_corpus(const struct corpus_entry &e)
 	return txid;
 }
 
-static tx *get_tx(const bitcoin_txid &txid)
+static tx *get_tx(const bitcoin_txid &txid, bool must_exist = true)
 {
 	char filename[sizeof("txcache/01234567890123456789012345678901234567890123456789012345678901234567")] = "txcache/";
 	char *txstring;
@@ -65,7 +67,10 @@ static tx *get_tx(const bitcoin_txid &txid)
 
 	txbytes = (u8 *)grab_file(NULL, filename);
 	if (!txbytes) {
-		errx(1, "Could not find tx %s", txstring);
+		if (must_exist)
+			errx(1, "Could not find tx %s", txstring);
+		warnx("could not find tx %s", txstring);
+		return NULL;
 	}
 
 	len = tal_count(txbytes)-1;
@@ -202,6 +207,9 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	// For each txid48, we keep all the fragments.
 	std::set<txslice> slices;
 
+	varint_t txs_discarded = 0;
+	varint_t slices_recovered = 0;
+
 	// While there are still singleton buckets...
 	while ((t = diff.next(s)) != iblt::NEITHER) {
 		if (t == iblt::OURS) {
@@ -209,22 +217,29 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 			// If we can't find it, we're corrupt.
 			// FIXME: Maybe keep going?.
 			if (it == pool.tx_by_txid48.end()) {
-				return false;
+				break;
 			} else {
 				// Remove entire tx.
 				diff.remove_our_tx(*it->second->btx, s.get_txid48());
 				// Make sure we make progress: remove it from consideration.
 				pool.tx_by_txid48.erase(s.get_txid48());
+				txs_discarded++;
 			}
 		} else if (t == iblt::THEIRS) {
 			// Gave us the same slice twice?  Fail.
 			if (!slices.insert(s).second) {
-				return false;
+				break;
 			}
 			diff.remove_their_slice(s);
+			slices_recovered++;
 		}
 	}
 
+	std::cout << std::string(p.file)
+			  << ": transactions removed " << txs_discarded
+			  << ", slices recovered " << slices_recovered
+			  << std::endl;
+	
 	// If we didn't empty it, we've failed decode.
 	if (!diff.empty()) {
 		return false;
@@ -260,10 +275,6 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 		}
 	}
 
-	if (count == 0)
-		std::cout << std::string(p.file) << " decoding block SUCCESS" << std::endl;
-	else
-		std::cout << std::string(p.file) << " decoding block left a fragment" << std::endl;
 	// Some left over?
 	return count == 0;
 }
@@ -284,9 +295,14 @@ static void forward_to_block(peer &p, size_t blocknum)
 		case INCOMING_TX:
 		case MEMPOOL_ONLY:
 			if (prev_block) {
-				// Add this to the mempool
-				p.mp.add(get_tx(txid_from_corpus(p.e)));
-				assert(p.mp.find(txid_from_corpus(p.e)));
+				// Add this to the mempool; ignore a few unknowns.
+				tx *t = get_tx(txid_from_corpus(p.e), false);
+				if (t) {
+					p.mp.add(t);
+					assert(p.mp.find(txid_from_corpus(p.e)));
+				} else {
+					p.unknown.insert(txid_from_corpus(p.e));
+				}
 			}
 			break;
 		case KNOWN:
@@ -304,18 +320,27 @@ static void next_block(peer &p)
 		switch (corpus_entry_type(&p.e)) {
 		case COINBASE:
 			return;
-		case INCOMING_TX:
-			// Add this to the mempool
-			p.mp.add(get_tx(txid_from_corpus(p.e)));
+		case INCOMING_TX: {
+			// Add this to the mempool; ignore a few unknowns.
+			tx *t = get_tx(txid_from_corpus(p.e), false);
+			if (t) {
+				p.mp.add(t);
+			} else {
+				p.unknown.insert(txid_from_corpus(p.e));
+			}
 			break;
+		}
 		case KNOWN:
 			// It was in block, so remove from mempool.
 			if (!p.mp.del(txid_from_corpus(p.e))) {
-				errx(1, "Peer %s has bad txid in block?", p.file);
+				if (!p.unknown.erase(txid_from_corpus(p.e))) {
+					errx(1, "Peer %s has bad txid in block?", p.file);
+				}
 			}
 			break;
 		case MEMPOOL_ONLY:
-			assert(p.mp.find(txid_from_corpus(p.e)));
+			assert(p.mp.find(txid_from_corpus(p.e))
+				   || p.unknown.find(txid_from_corpus(p.e)) != p.unknown.end());
 			break;
 		case UNKNOWN:
 			assert(!p.mp.find(txid_from_corpus(p.e)));
@@ -351,8 +376,14 @@ int main(int argc, char *argv[])
 												  atoi(argv[1]), seed++);
 
 		// Others receive the block.
-		for (size_t i = 1; i < num_pools; i++)
-			peers[i].decode_fail += !decode_block(peers[i], incoming);
+		for (size_t i = 1; i < num_pools; i++) {
+			bool success = decode_block(peers[i], incoming);
+			std::cout << std::string(peers[i].file)
+					  << ":" << blocknum
+					  << ":" << (success ? "SUCCESS" : "FAILED")
+					  << std::endl;
+			peers[i].decode_fail += !success;
+		}
 		blocknum++;
 
 		for (auto &p : peers)

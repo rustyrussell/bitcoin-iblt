@@ -1,6 +1,6 @@
 CCANDIR := ../ccan
-CFLAGS := -Wall -I$(CCANDIR) -g
-CXXFLAGS := $(CFLAGS) -I../bitcoin-corpus -std=c++11 -D_GLIBCXX_DEBUG -DIBLT_SIZE=64
+CFLAGS := -Wall -I$(CCANDIR) -g -O3
+CXXFLAGS := $(CFLAGS) -I../bitcoin-corpus -std=c++11 -DIBLT_SIZE=64 # -D_GLIBCXX_DEBUG
 OBJS := iblt-test.o iblt.o mempool.o sha256_double.o bitcoin_tx.o txslice.o murmur.o wire_encode.o ibltpool.o txslice.o rawiblt.o
 HEADERS := iblt.h mempool.h sha256_double.h txid48.h bitcoin_tx.h txslice.h murmur.h wire_encode.h
 
@@ -14,7 +14,7 @@ iblt-test: $(OBJS) $(CCAN_OBJS)
 utils/add-to-txcache: utils/add-to-txcache.o $(CCAN_OBJS)
 
 clean:
-	$(RM) $(OBJS)
+	$(RM) $(OBJS) $(CCAN_OBJS)
 
 ccan-tal.o: $(CCANDIR)/ccan/tal/tal.c
 	$(CC) $(CFLAGS) -c -o $@ $<
