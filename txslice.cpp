@@ -5,7 +5,7 @@
 struct slice_state {
     size_t index;
     size_t off;
-    std::vector<txslice> vec;
+    std::vector<txslice> &vec;
 };
 
 static void add_slice(const void *data, size_t len, void *pvec)
@@ -78,7 +78,7 @@ std::vector<txslice> slice_tx(const bitcoin_tx &btx, const txid48 &id)
     for (size_t i = 0; i < vec.size(); ++i) {
         vec[i].txidbits = id.get_id();
         assert(vec[i].txidbits == id.get_id());
-        vec[i].fragid = i;
+        vec[i].fragid = i + id.frag_base();
     }
 
     // Now linearize into it.
