@@ -460,7 +460,17 @@ int main(int argc, char *argv[])
 		forward_to_block(p, blocknum);
 	}
 
-	std::cout << "blocknum:blocksize:knownbytes:unknownbytes:mempoolbytes:addedbitesetsize:removedbitsetsize:wirebytes..." << std::endl;
+	std::cout << "blocknum:blocksize:knownbytes:unknownbytes:mempoolbytes:addedbitesetsize:removedbitsetsize";
+	for (size_t i = 2; i < argc; i++) {
+		const char *slash = strrchr(argv[i], '/');
+		if (!slash)
+			slash = argv[1];
+		else
+			slash++;
+		std::cout << ":" << slash;
+	}
+	std::cout << std::endl;
+
 	do {
 		seed++;
 		
