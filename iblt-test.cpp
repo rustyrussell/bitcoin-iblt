@@ -18,14 +18,15 @@ extern "C" {
 
 #define IBLT_SIZE 64
 
+static bool verbose;
+
 struct peer {
 	mempool mp;
-	size_t decode_fail;
 	int infd;
 	const char *file;
 	struct corpus_entry e;
 
-	peer() : decode_fail(0), infd(-1) { }
+	peer() : infd(-1) { }
 
 	// FIXME: Read .xz files directly...
 	bool next_entry() {
@@ -84,13 +85,16 @@ static tx *get_tx(const bitcoin_txid &txid, bool must_exist = true)
 	return t;
 }
 
-static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
-									  u64 seed)
+static std::unordered_set<const tx *>
+generate_block(peer &p, size_t blocknum, u64 seed,
+			   tx *&cb,
+			   txbitsSet &added, txbitsSet &removed,
+			   u64 &min_fee_per_byte)
 {
 	if (corpus_entry_type(&p.e) != COINBASE)
 		errx(1, "Expected coinbase for block %zu", blocknum);
 
-	tx *cb = get_tx(txid_from_corpus(p.e));
+	cb = get_tx(txid_from_corpus(p.e));
 
 	std::unordered_set<const tx *> block;
 
@@ -122,10 +126,10 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 
   out:
 	// FIXME: We assume 10,000 satoshi for 1000 bytes.
-	u64 min_fee_per_byte = 10;
+	min_fee_per_byte = 10;
 
 	// Create set of added txs.
-	txbitsSet added(48);
+	added = txbitsSet(48);
 
 	// We include *everything* in our mempool; this ensures that our
 	// "added" bitset distinguishes uniquely in our mempool.
@@ -142,28 +146,26 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 	}
 
 	// FIXME: We currently assume none removed; simulate Eligius?
-	txbitsSet removed;
+	removed = txbitsSet(0);
 
-	// Now, build iblt.
-	raw_iblt riblt(maxbytes / raw_iblt::WIRE_BYTES, seed, block);
-
-	return wire_encode(*cb->btx, min_fee_per_byte, seed, added, removed, riblt);
+	return block;
 }
 
 // Debugger attach point;
 static bool fail(const peer &p,
 				 size_t blocknum, size_t txs_discarded, size_t slices_recovered)
 {
-	std::cout << std::string(p.file)
-			  << ":" << blocknum
-			  << ":FAILED"
-			  << ": transactions removed " << txs_discarded
-			  << ", slices recovered " << slices_recovered
-			  << std::endl;
+	if (verbose)
+		std::cout << std::string(p.file)
+				  << ":" << blocknum
+				  << ":FAILED"
+				  << ": transactions removed " << txs_discarded
+				  << ", slices recovered " << slices_recovered
+				  << std::endl;
 	return false;
 }
 
-static bool decode_block(peer &p, const std::vector<u8> in, size_t blocknum)
+static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknum)
 {
 	bitcoin_tx cb(varint_t(0), varint_t(0));
 	u64 min_fee_per_byte;
@@ -287,12 +289,13 @@ static bool decode_block(peer &p, const std::vector<u8> in, size_t blocknum)
 	if (count != 0) {
 		return fail(p, blocknum, txs_discarded, slices_recovered);
 	}
-	std::cout << std::string(p.file)
-			  << ":" << blocknum
-			  << ":SUCCESS"
-			  << ": transactions removed " << txs_discarded
-			  << ", slices recovered " << slices_recovered
-			  << std::endl;
+	if (verbose)
+		std::cout << std::string(p.file)
+				  << ":" << blocknum
+				  << ":SUCCESS"
+				  << ": transactions removed " << txs_discarded
+				  << ", slices recovered " << slices_recovered
+				  << std::endl;
 	return true;
 }
 
@@ -367,20 +370,57 @@ static void next_block(peer &p)
 	errx(1, "No next block for peer %s", p.file);
 }
 
+static int min_decode(std::unordered_set<const tx *> block,
+					  const txbitsSet &added,
+					  const txbitsSet &removed,
+					  u64 min_fee_per_byte,
+					  const bitcoin_tx &cb,
+					  const peer &p, u64 seed, size_t blocknum)
+{
+	// No point sending over 1MB.
+	const size_t max_possible = 1024 * 1024 / raw_iblt::WIRE_BYTES;
+	size_t min_buckets = 0, max_buckets = max_possible;
+	size_t num, data_size = -1;
+
+	while (min_buckets != max_buckets) {
+		num = (min_buckets + max_buckets) / 2;
+		raw_iblt riblt(num, seed, block);
+
+		std::vector<u8> data = wire_encode(cb, min_fee_per_byte, seed,
+										   added, removed, riblt);
+
+		if (decode_block(p, data, blocknum)) {
+			max_buckets = num;
+//			std::cout << "Success at " << num << std::endl;
+			data_size = data.size();
+		} else {
+			min_buckets = num + 1;
+//			std::cout << "Failed at " << num << std::endl;
+			// Complete failure?
+			if (min_buckets == max_possible - 1) {
+				break;
+			}
+		}
+	}
+
+	return data_size;
+}
+
 int main(int argc, char *argv[])
 {
-	size_t blocknum = 352305, end = 353305;
+	// 352792 to 352810 is a time of backlog, so include that.
+	size_t blocknum = 352720, end = 352820;
 	u64 seed = 1;
 
 	if (argc < 4)
-		errx(1, "Usage: %s <max-bytes> <generator-corpus> <peer-corpus>...", argv[0]);
+		errx(1, "Usage: %s <generator-corpus> <peer-corpus>...", argv[0]);
 
 	// We keep track of everyone's mempools.
-	size_t num_pools = argc - 2;
+	size_t num_pools = argc - 1;
 	std::vector<peer> peers(num_pools);
 
-	size_t argnum = 2;
-	// Get corpuses.  Hope you have plenty of memory!
+	size_t argnum = 1;
+	// Open corpuses.
 	for (auto &p : peers) {
 		if (!p.open(argv[argnum++]))
 			err(1, "Opening %s", argv[argnum-1]);
@@ -388,21 +428,28 @@ int main(int argc, char *argv[])
 	}
 
 	do {
-		// Now, first peer generates block (may have to add to pool)
-		std::vector<u8> incoming = generate_block(peers[0], blocknum,
-												  atoi(argv[1]), seed++);
+		seed++;
+		
+		// Peer 0 generates a block.
+		txbitsSet added, removed;
+		tx *coinbase;
+		std::unordered_set<const tx *> block;
+		u64 min_fee_per_byte;
 
-		// Others receive the block.
+		block = generate_block(peers[0], blocknum, seed, coinbase, added, removed, min_fee_per_byte);
+
+		std::cout << "Block " << blocknum;
+		// See how small we can encode it for each peer.
 		for (size_t i = 1; i < num_pools; i++) {
-			peers[i].decode_fail += !decode_block(peers[i], incoming, blocknum);
+			unsigned int min_size = min_decode(block, added, removed,
+											   min_fee_per_byte, *coinbase->btx,
+											   peers[i],
+											   seed, blocknum);
+			std::cout << ":" << min_size;
 		}
+		std::cout << std::endl;
 		blocknum++;
-
 		for (auto &p : peers)
 			next_block(p);
 	} while (blocknum != end);
-
-	for (size_t i = 1; i < num_pools; i++) {
-		std::cout << "Peer " << i << ": " << peers[i].decode_fail << std::endl;
-	}
 }
