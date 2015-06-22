@@ -151,12 +151,19 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 }
 
 // Debugger attach point;
-static bool fail()
+static bool fail(const peer &p,
+				 size_t blocknum, size_t txs_discarded, size_t slices_recovered)
 {
+	std::cout << std::string(p.file)
+			  << ":" << blocknum
+			  << ":FAILED"
+			  << ": transactions removed " << txs_discarded
+			  << ", slices recovered " << slices_recovered
+			  << std::endl;
 	return false;
 }
 
-static bool decode_block(peer &p, const std::vector<u8> in)
+static bool decode_block(peer &p, const std::vector<u8> in, size_t blocknum)
 {
 	bitcoin_tx cb(varint_t(0), varint_t(0));
 	u64 min_fee_per_byte;
@@ -213,17 +220,16 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	// For each txid48, we keep all the fragments.
 	std::set<txslice> slices;
 
-	varint_t txs_discarded = 0;
-	varint_t slices_recovered = 0;
+	size_t txs_discarded = 0;
+	size_t slices_recovered = 0;
 
 	// While there are still singleton buckets...
 	while ((t = diff.next(s)) != iblt::NEITHER) {
 		if (t == iblt::OURS) {
 			auto it = pool.tx_by_txid48.find(s.get_txid48());
 			// If we can't find it, we're corrupt.
-			// FIXME: Maybe keep going?.
 			if (it == pool.tx_by_txid48.end()) {
-				return fail();
+				return fail(p, blocknum, txs_discarded, slices_recovered);
 			} else {
 				// Remove entire tx.
 				diff.remove_our_tx(*it->second->btx, s.get_txid48());
@@ -234,21 +240,16 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 		} else if (t == iblt::THEIRS) {
 			// Gave us the same slice twice?  Fail.
 			if (!slices.insert(s).second) {
-				return fail();
+				return fail(p, blocknum, txs_discarded, slices_recovered);
 			}
 			diff.remove_their_slice(s);
 			slices_recovered++;
 		}
 	}
 
-	std::cout << std::string(p.file)
-			  << ": transactions removed " << txs_discarded
-			  << ", slices recovered " << slices_recovered
-			  << std::endl;
-	
 	// If we didn't empty it, we've failed decode.
 	if (!diff.empty()) {
-		return fail();
+		return fail(p, blocknum, txs_discarded, slices_recovered);
 	}
 
 	// Try to assemble the slices into txs.
@@ -259,7 +260,7 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 		if (count == 0) {
 			size_t num = s.slices_expected();
 			if (!num || num > 0xFFFF) {
-				return fail();
+				return fail(p, blocknum, txs_discarded, slices_recovered);
 			}
 			transaction = std::vector<txslice>(num);
 			transaction[0] = s;
@@ -267,11 +268,11 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 		} else {
 			// Missing part of transaction?
 			if (s.txidbits != transaction[count-1].txidbits) {
-				return fail();
+				return fail(p, blocknum, txs_discarded, slices_recovered);
 			}
 			// Fragment id wrong?
 			if (s.fragid != transaction[count-1].fragid + 1) {
-				return fail();
+				return fail(p, blocknum, txs_discarded, slices_recovered);
 			}
 			transaction[count++] = s;
 			if (count == transaction.size()) {
@@ -284,8 +285,14 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 
 	// Some left over?
 	if (count != 0) {
-		return fail();
+		return fail(p, blocknum, txs_discarded, slices_recovered);
 	}
+	std::cout << std::string(p.file)
+			  << ":" << blocknum
+			  << ":SUCCESS"
+			  << ": transactions removed " << txs_discarded
+			  << ", slices recovered " << slices_recovered
+			  << std::endl;
 	return true;
 }
 
@@ -387,12 +394,7 @@ int main(int argc, char *argv[])
 
 		// Others receive the block.
 		for (size_t i = 1; i < num_pools; i++) {
-			bool success = decode_block(peers[i], incoming);
-			std::cout << std::string(peers[i].file)
-					  << ":" << blocknum
-					  << ":" << (success ? "SUCCESS" : "FAILED")
-					  << std::endl;
-			peers[i].decode_fail += !success;
+			peers[i].decode_fail += !decode_block(peers[i], incoming, blocknum);
 		}
 		blocknum++;
 
