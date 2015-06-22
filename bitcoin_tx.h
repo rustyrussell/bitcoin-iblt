@@ -6,6 +6,8 @@ extern "C" {
 #include "sha256_double.h"
 #include "murmur.h"
 #include <vector>
+#include <iostream>
+#include <iomanip>
 
 /* We unpack varints for our in-memory representation */
 typedef u64 varint_t;
@@ -16,12 +18,21 @@ struct bitcoin_txid {
     bitcoin_txid() { }
     bitcoin_txid(sha256_ctx &ctx) : shad(ctx) { }
     bitcoin_txid(const char *hexstr, size_t hexstr_len);
+
+    friend std::ostream& operator<< (std::ostream& stream, const bitcoin_txid& txid) {
+        std::ostream::fmtflags saved(stream.flags());
+        for (size_t i = 0; i < sizeof(txid.shad.sha.u.u8); i++) {
+            stream << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)txid.shad.sha.u.u8[i];
+        }
+        stream.flags(saved);
+        return stream;
+    }
 };
 
 inline bool operator ==(const bitcoin_txid &lhs, const bitcoin_txid &rhs)
 {
-	return memcmp(lhs.shad.sha.u.u8, rhs.shad.sha.u.u8,
-				  sizeof(lhs.shad.sha.u.u8)) == 0;
+    return memcmp(lhs.shad.sha.u.u8, rhs.shad.sha.u.u8,
+                  sizeof(lhs.shad.sha.u.u8)) == 0;
 }
 
 struct bitcoin_tx_output {
@@ -71,25 +82,25 @@ struct bitcoin_tx {
 
 // To place them in unordered_set
 namespace std {
-	template <>
+    template <>
     struct hash<bitcoin_txid> {
-		std::size_t operator() (const bitcoin_txid &txid) const {
-			// This only gives 32 bits, but ok for testing
-			return MurmurHash3(0, txid.shad.sha.u.u8,
-							   sizeof(txid.shad.sha.u.u8));
-		}
-	};
+        std::size_t operator() (const bitcoin_txid &txid) const {
+            // This only gives 32 bits, but ok for testing
+            return MurmurHash3(0, txid.shad.sha.u.u8,
+                               sizeof(txid.shad.sha.u.u8));
+        }
+    };
 
 #if 0
-	template <>
+    template <>
     struct hash<bitcoin_tx> {
-		std::size_t operator() (const bitcoin_tx &tx) const {
-			// Horribly inefficient
-			bitcoin_txid txid = tx.txid();
-			return MurmurHash3(0, txid.shad.sha.u.u8,
-							   sizeof(txid.shad.sha.u.u8));
-		}
-	};
+        std::size_t operator() (const bitcoin_tx &tx) const {
+            // Horribly inefficient
+            bitcoin_txid txid = tx.txid();
+            return MurmurHash3(0, txid.shad.sha.u.u8,
+                               sizeof(txid.shad.sha.u.u8));
+        }
+    };
 #endif
 }
 
