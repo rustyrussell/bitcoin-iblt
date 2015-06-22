@@ -136,7 +136,7 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 			  << ":" << p.mp.length();
 
 	// FIXME: We assume 10,000 satoshi for 1000 bytes.
-	min_fee_per_byte = 10;
+	min_fee_per_byte = 10 << 13;
 
 	// Create set of added txs.
 	added = txbitsSet(48);
