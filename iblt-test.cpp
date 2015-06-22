@@ -150,6 +150,12 @@ static std::vector<u8> generate_block(peer &p, size_t blocknum, size_t maxbytes,
 	return wire_encode(*cb->btx, min_fee_per_byte, seed, added, removed, riblt);
 }
 
+// Debugger attach point;
+static bool fail()
+{
+	return false;
+}
+
 static bool decode_block(peer &p, const std::vector<u8> in)
 {
 	bitcoin_tx cb(varint_t(0), varint_t(0));
@@ -217,7 +223,7 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 			// If we can't find it, we're corrupt.
 			// FIXME: Maybe keep going?.
 			if (it == pool.tx_by_txid48.end()) {
-				break;
+				return fail();
 			} else {
 				// Remove entire tx.
 				diff.remove_our_tx(*it->second->btx, s.get_txid48());
@@ -228,7 +234,7 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 		} else if (t == iblt::THEIRS) {
 			// Gave us the same slice twice?  Fail.
 			if (!slices.insert(s).second) {
-				break;
+				return fail();
 			}
 			diff.remove_their_slice(s);
 			slices_recovered++;
@@ -242,7 +248,7 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	
 	// If we didn't empty it, we've failed decode.
 	if (!diff.empty()) {
-		return false;
+		return fail();
 	}
 
 	// Try to assemble the slices into txs.
@@ -252,19 +258,20 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	for (const auto &s: slices) {
 		if (count == 0) {
 			size_t num = s.slices_expected();
-			if (!num || num > 0xFFFF)
-				return false;
+			if (!num || num > 0xFFFF) {
+				return fail();
+			}
 			transaction = std::vector<txslice>(num);
 			transaction[0] = s;
 			count = 1;
 		} else {
 			// Missing part of transaction?
 			if (s.txidbits != transaction[count-1].txidbits) {
-				return false;
+				return fail();
 			}
 			// Fragment id wrong?
 			if (s.fragid != transaction[count-1].fragid + 1) {
-				return false;
+				return fail();
 			}
 			transaction[count++] = s;
 			if (count == transaction.size()) {
@@ -276,7 +283,10 @@ static bool decode_block(peer &p, const std::vector<u8> in)
 	}
 
 	// Some left over?
-	return count == 0;
+	if (count != 0) {
+		return fail();
+	}
+	return true;
 }
 
 // We sync the mempool at the block before.
