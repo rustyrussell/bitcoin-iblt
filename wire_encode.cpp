@@ -9,7 +9,7 @@ static void add_linearize(const void *data, size_t len, void *pvec)
     vec->insert(vec->end(), (u8 *)data, (u8 *)data + len);
 }
 
-static void add_bitset(std::vector<u8> *arr, const txbitsSet &bset)
+void add_bitset(std::vector<u8> *arr, const txbitsSet &bset)
 {
     size_t i, min = bset.size() - 1, max = 0;
 

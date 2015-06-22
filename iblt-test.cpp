@@ -97,6 +97,7 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 	cb = get_tx(txid_from_corpus(p.e));
 
 	std::unordered_set<const tx *> block;
+	size_t blocksize = cb->btx->length(), unknown = 0, known = 0;
 
 	// Top up mempool with any txs we didn't know, get all txs in the block.
 	while (p.next_entry()) {
@@ -112,11 +113,15 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 			t = get_tx(txid);
 			p.mp.add(t);
 			block.insert(t);
+			blocksize += t->btx->length();
+			unknown += t->btx->length();
 			break;
 		}
 		case KNOWN: {
 			t = p.mp.find(txid_from_corpus(p.e));
 			block.insert(t);
+			blocksize += t->btx->length();
+			known += t->btx->length();
 			break;
 		}
 		default:
@@ -125,6 +130,11 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 	}
 
   out:
+	std::cout << ":" << blocksize
+			  << ":" << known
+			  << ":" << unknown
+			  << ":" << p.mp.length();
+
 	// FIXME: We assume 10,000 satoshi for 1000 bytes.
 	min_fee_per_byte = 10;
 
@@ -145,8 +155,30 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 		}
 	}
 
-	// FIXME: We currently assume none removed; simulate Eligius?
-	removed = txbitsSet(0);
+	size_t num_removed = 0;
+	// What didn't we include, that would be expected?
+	removed = txbitsSet(48);
+	for (const auto &t : pool.tx_by_txid48) {
+		if (t.second->satoshi_per_byte() >= min_fee_per_byte) {
+			if (block.find(t.second) == block.end()) {
+				std::vector<bool> bvec = pool.get_unique_bitid(t.first);
+				removed[bvec.size()].insert(bvec);
+				num_removed++;
+			}
+		}
+	}
+
+	std::vector<u8> for_length;
+	add_bitset(&for_length, added);
+	std::cout << ":" << for_length.size();
+	for_length = std::vector<u8>();
+	add_bitset(&for_length, removed);
+	std::cout << ":" << for_length.size();
+
+	// Now remove everything in block from our mempool.
+	for (auto &t: block) {
+		p.mp.del(t->txid);
+	}
 
 	return block;
 }
@@ -188,11 +220,14 @@ static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknu
 	}
 
 	// Now, remove any which they explicity said to remove
+	size_t num_removed = 0;
     for (const auto &s: removed) {
         for (const auto &vec : s) {
 			// We can have more than one match: remove them all.
 			for (const auto &t: pool.get_txs(vec)) {
-				candidates.erase(t);
+				if (candidates.erase(t)) {
+					num_removed++;
+				}
 			}
 		}
 	}
@@ -377,9 +412,9 @@ static int min_decode(std::unordered_set<const tx *> block,
 					  const bitcoin_tx &cb,
 					  const peer &p, u64 seed, size_t blocknum)
 {
-	// No point sending over 1MB.
-	const size_t max_possible = 1024 * 1024 / raw_iblt::WIRE_BYTES;
-	size_t min_buckets = 0, max_buckets = max_possible;
+	// Try up to 4MB
+	const size_t max_possible = 4 * 1024 * 1024 / raw_iblt::WIRE_BYTES;
+	size_t min_buckets = 1, max_buckets = max_possible;
 	size_t num, data_size = -1;
 
 	while (min_buckets != max_buckets) {
@@ -391,11 +426,9 @@ static int min_decode(std::unordered_set<const tx *> block,
 
 		if (decode_block(p, data, blocknum)) {
 			max_buckets = num;
-//			std::cout << "Success at " << num << std::endl;
 			data_size = data.size();
 		} else {
 			min_buckets = num + 1;
-//			std::cout << "Failed at " << num << std::endl;
 			// Complete failure?
 			if (min_buckets == max_possible - 1) {
 				break;
@@ -427,6 +460,7 @@ int main(int argc, char *argv[])
 		forward_to_block(p, blocknum);
 	}
 
+	std::cout << "blocknum:blocksize:knownbytes:unknownbytes:mempoolbytes:addedbitesetsize:removedbitsetsize:wirebytes..." << std::endl;
 	do {
 		seed++;
 		
@@ -436,15 +470,15 @@ int main(int argc, char *argv[])
 		std::unordered_set<const tx *> block;
 		u64 min_fee_per_byte;
 
+		std::cout << blocknum;
 		block = generate_block(peers[0], blocknum, seed, coinbase, added, removed, min_fee_per_byte);
 
-		std::cout << "Block " << blocknum;
 		// See how small we can encode it for each peer.
 		for (size_t i = 1; i < num_pools; i++) {
-			unsigned int min_size = min_decode(block, added, removed,
-											   min_fee_per_byte, *coinbase->btx,
-											   peers[i],
-											   seed, blocknum);
+			int min_size = min_decode(block, added, removed,
+									  min_fee_per_byte, *coinbase->btx,
+									  peers[i],
+									  seed, blocknum);
 			std::cout << ":" << min_size;
 		}
 		std::cout << std::endl;

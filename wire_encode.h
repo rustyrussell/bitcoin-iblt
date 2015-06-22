@@ -26,4 +26,6 @@ raw_iblt wire_decode(const std::vector<u8> &incoming,
 		     u64 &seed,
 		     txbitsSet &added,
 		     txbitsSet &removed);
+
+void add_bitset(std::vector<u8> *arr, const txbitsSet &bset);
 #endif // WIRE_ENCODE_H

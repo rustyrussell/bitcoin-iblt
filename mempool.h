@@ -23,7 +23,9 @@ public:
     bool del(const bitcoin_txid &txid) {
         return tx_by_txid.erase(txid) != 0;
     }
-
+    size_t size() const { return tx_by_txid.size(); }
+    size_t length() const;
+    
     // Membership check.
     tx *find(const bitcoin_txid &id);
 
