@@ -445,7 +445,7 @@ int main(int argc, char *argv[])
 	size_t blocknum = 352720, end = 352820;
 	u64 seed = 1;
 
-	if (argc < 4)
+	if (argc < 3)
 		errx(1, "Usage: %s <generator-corpus> <peer-corpus>...", argv[0]);
 
 	// We keep track of everyone's mempools.
