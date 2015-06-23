@@ -446,7 +446,19 @@ int main(int argc, char *argv[])
 	u64 seed = 1;
 
 	if (argc < 3)
-		errx(1, "Usage: %s <generator-corpus> <peer-corpus>...", argv[0]);
+		errx(1, "Usage: %s [--range=a,b] <generator-corpus> <peer-corpus>...", argv[0]);
+
+	if (strncmp(argv[1], "--range=", strlen("--range=")) == 0) {
+		char *endp;
+		blocknum = strtoul(argv[1] + strlen("--range="), &endp, 10);
+		if (*endp != ',')
+			errx(1, "Invalid --range");
+		end = strtoul(endp+1, &endp, 10) + 1;
+		if (end <= blocknum)
+			errx(1, "Invalid --range");
+		argc--;
+		argv++;
+	}
 
 	// We keep track of everyone's mempools.
 	size_t num_pools = argc - 1;
