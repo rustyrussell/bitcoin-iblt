@@ -334,46 +334,30 @@ static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknu
 	return true;
 }
 
-// We sync the mempool at the block before.
-static void forward_to_block(peer &p, size_t blocknum)
+static bool maybe_orphan(size_t blocknum)
 {
-	bool prev_block = false;
-	do {
-		switch (corpus_entry_type(&p.e)) {
-		case COINBASE:
-			if (corpus_blocknum(&p.e) == blocknum) {
-				return;
-			}
-			assert(!prev_block);
-			prev_block = (corpus_blocknum(&p.e) == blocknum - 1);
-			break;
-		case INCOMING_TX:
-		case MEMPOOL_ONLY:
-			if (prev_block) {
-				// Add this to the mempool; ignore a few unknowns.
-				tx *t = get_tx(txid_from_corpus(p.e), false);
-				if (t) {
-					p.mp.add(t);
-					assert(p.mp.find(txid_from_corpus(p.e)));
-				} else {
-					p.unknown.insert(txid_from_corpus(p.e));
-				}
-			}
-			break;
-		case KNOWN:
-		case UNKNOWN:
-			break;
-		}
-	} while (p.next_entry());
-	errx(1, "No block number %zu for peer %s", blocknum, p.file);
+	return blocknum == 352802;
 }
 
-static void next_block(peer &p)
+// We identify orphaned blocks by coinbase.
+static bool orphaned(const bitcoin_txid &txid)
+{
+	// This is the 352802 orphan
+	return (txid == bitcoin_txid("79b1c309ab8ab92bca4d07508e0f596f872f66c6db4d3667133a37172055e97b", strlen("79b1c309ab8ab92bca4d07508e0f596f872f66c6db4d3667133a37172055e97b")));
+}
+
+// Sync up mempool based on next block.
+static void next_block(peer &p, size_t blocknum)
 {
 	// Keep going until next coinbase;
 	while (p.next_entry()) {
 		switch (corpus_entry_type(&p.e)) {
 		case COINBASE:
+			// If it's orphaned, ignore it.
+			if (orphaned(txid_from_corpus(p.e)))
+				break;
+			// If this fails, we hit an orphan!
+			assert(corpus_blocknum(&p.e) == blocknum);
 			return;
 		case INCOMING_TX: {
 			// Add this to the mempool; ignore a few unknowns.
@@ -402,7 +386,56 @@ static void next_block(peer &p)
 			break;
 		}
 	}
-	errx(1, "No next block for peer %s", p.file);
+	errx(1, "No block %zu for peer %s", blocknum, p.file);
+}
+
+// We sync the mempool at the block before.
+static void forward_to_block(peer &p, size_t blocknum)
+{
+	bool prev_block = false;
+
+	// Corner case: previous blocknum is orphan.  Re-use next_block logic().
+	if (maybe_orphan(blocknum - 1)) {
+		forward_to_block(p, blocknum - 2);
+		next_block(p, blocknum-1);
+		next_block(p, blocknum);
+		return;
+	}
+
+	do {
+		switch (corpus_entry_type(&p.e)) {
+		case COINBASE:
+			// If it's orphaned, ignore it.
+			if (orphaned(txid_from_corpus(p.e))) {
+				break;
+			}
+			if (corpus_blocknum(&p.e) == blocknum) {
+				assert(prev_block);
+				return;
+			}
+			assert(!prev_block);
+			prev_block = (corpus_blocknum(&p.e) == blocknum - 1);
+			break;
+		case INCOMING_TX:
+		case MEMPOOL_ONLY:
+			if (prev_block) {
+				// Add this to the mempool; ignore a few unknowns.
+				tx *t = get_tx(txid_from_corpus(p.e), false);
+				if (t) {
+					p.mp.add(t);
+					assert(p.mp.find(txid_from_corpus(p.e)));
+//					std::cout << "Added " << t->txid << std::endl;
+				} else {
+					p.unknown.insert(txid_from_corpus(p.e));
+				}
+			}
+			break;
+		case KNOWN:
+		case UNKNOWN:
+			break;
+		}
+	} while (p.next_entry());
+	errx(1, "No block number %zu for peer %s", blocknum, p.file);
 }
 
 static int min_decode(std::unordered_set<const tx *> block,
@@ -506,6 +539,6 @@ int main(int argc, char *argv[])
 		std::cout << std::endl;
 		blocknum++;
 		for (auto &p : peers)
-			next_block(p);
+			next_block(p, blocknum);
 	} while (blocknum != end);
 }
