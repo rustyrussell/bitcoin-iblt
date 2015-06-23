@@ -130,10 +130,10 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 	}
 
   out:
-	std::cout << ":" << blocksize
-			  << ":" << known
-			  << ":" << unknown
-			  << ":" << p.mp.length();
+	std::cout << "," << blocksize
+			  << "," << known
+			  << "," << unknown
+			  << "," << p.mp.length();
 
 	// FIXME: We assume 10,000 satoshi for 1000 bytes.
 	min_fee_per_byte = 10 << 13;
@@ -170,10 +170,10 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 
 	std::vector<u8> for_length;
 	add_bitset(&for_length, added);
-	std::cout << ":" << for_length.size();
+	std::cout << "," << for_length.size();
 	for_length = std::vector<u8>();
 	add_bitset(&for_length, removed);
-	std::cout << ":" << for_length.size();
+	std::cout << "," << for_length.size();
 
 	// Now remove everything in block from our mempool.
 	for (auto &t: block) {
@@ -505,14 +505,14 @@ int main(int argc, char *argv[])
 		forward_to_block(p, blocknum);
 	}
 
-	std::cout << "blocknum:blocksize:knownbytes:unknownbytes:mempoolbytes:addedbitesetsize:removedbitsetsize";
+	std::cout << "blocknum,blocksize,knownbytes,unknownbytes,mempoolbytes,addedbitsetsize,removedbitsetsize";
 	for (size_t i = 2; i < argc; i++) {
 		const char *slash = strrchr(argv[i], '/');
 		if (!slash)
 			slash = argv[1];
 		else
 			slash++;
-		std::cout << ":" << slash;
+		std::cout << "," << slash;
 	}
 	std::cout << std::endl;
 
@@ -534,7 +534,7 @@ int main(int argc, char *argv[])
 									  min_fee_per_byte, *coinbase->btx,
 									  peers[i],
 									  seed, blocknum);
-			std::cout << ":" << min_size;
+			std::cout << "," << min_size;
 		}
 		std::cout << std::endl;
 		blocknum++;
