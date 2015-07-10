@@ -57,8 +57,8 @@ public:
 	// Remove a single slice.
 	void remove_their_slice(const txslice &s);
 
-	// Remove an entire tx.
-	void remove_our_tx(const struct bitcoin_tx &btx, const txid48 &id);
+	// Remove an entire tx (returns slices removed)
+	size_t remove_our_tx(const struct bitcoin_tx &btx, const txid48 &id);
 
 	// If we don't remove anything, this cancels todo.
 	void remove_todo(bucket_type, const txslice &);

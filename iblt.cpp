@@ -170,12 +170,13 @@ bool iblt::empty() const
     return true;
 }
 
-void iblt::remove_our_tx(const struct bitcoin_tx &btx, const txid48 &id)
+size_t iblt::remove_our_tx(const struct bitcoin_tx &btx, const txid48 &id)
 {
     std::vector<txslice> v = slice_tx(btx, id);
     for (const auto &s : v) {
         frob_buckets(s, 1);
     }
+    return v.size();
 }
 
 void iblt::remove_their_slice(const txslice &s)

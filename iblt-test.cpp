@@ -197,7 +197,7 @@ static bool fail(const peer &p,
 	return false;
 }
 
-static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknum, size_t &slices_recovered, size_t &txs_discarded)
+static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknum, size_t &slices_recovered, size_t &slices_discarded, size_t &txs_discarded)
 {
 	bitcoin_tx cb(varint_t(0), varint_t(0));
 	u64 min_fee_per_byte;
@@ -259,6 +259,7 @@ static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknu
 
 	txs_discarded = 0;
 	slices_recovered = 0;
+	slices_discarded = 0;
 	
 	// While there are still singleton buckets...
 	while ((t = diff.next(s)) != iblt::NEITHER) {
@@ -269,7 +270,7 @@ static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknu
 				return fail(p, blocknum, txs_discarded, slices_recovered);
 			} else {
 				// Remove entire tx.
-				diff.remove_our_tx(*it->second->btx, s.get_txid48());
+				slices_discarded += diff.remove_our_tx(*it->second->btx, s.get_txid48());
 				// Make sure we make progress: remove it from consideration.
 				pool.tx_by_txid48.erase(s.get_txid48());
 				txs_discarded++;
@@ -444,26 +445,28 @@ static int min_decode(std::unordered_set<const tx *> block,
 					  u64 min_fee_per_byte,
 					  const bitcoin_tx &cb,
 					  const peer &p, u64 seed, size_t blocknum,
-					  size_t &iblt_slices, size_t &slices_recovered, size_t &txs_discarded)
+					  size_t &iblt_slices, size_t &slices_recovered,
+					  size_t &slices_discarded, size_t &txs_discarded)
 {
 	// Try up to 4MB
 	const size_t max_possible = 4 * 1024 * 1024 / raw_iblt::WIRE_BYTES;
 	size_t min_buckets = 1, max_buckets = max_possible;
 	size_t num, data_size = -1;
 
-	slices_recovered = txs_discarded = iblt_slices = 0;
+	slices_recovered = txs_discarded = slices_discarded = iblt_slices = 0;
 	while (min_buckets != max_buckets) {
 		num = (min_buckets + max_buckets) / 2;
 		raw_iblt riblt(num, seed, block);
-		size_t srecovered, tdiscarded;
+		size_t srecovered, sdiscarded, tdiscarded;
 
 		std::vector<u8> data = wire_encode(cb, min_fee_per_byte, seed,
 										   added, removed, riblt);
 
-		if (decode_block(p, data, blocknum, srecovered, tdiscarded)) {
+		if (decode_block(p, data, blocknum, srecovered, sdiscarded, tdiscarded)) {
 			max_buckets = num;
 			data_size = data.size();
 			slices_recovered = srecovered;
+			slices_discarded = sdiscarded;
 			txs_discarded = tdiscarded;
 			iblt_slices = riblt.size();
 		} else {
@@ -521,6 +524,7 @@ int main(int argc, char *argv[])
 		std::cout << "," << slash << ","
 				  << slash << "-ibltslices" << ","
 				  << slash << "-slicesrecovered" << ","
+				  << slash << "-slicesdiscarded" << ","
 				  << slash << "-txsdiscarded";
 	}
 	std::cout << std::endl;
@@ -539,13 +543,13 @@ int main(int argc, char *argv[])
 
 		// See how small we can encode it for each peer.
 		for (size_t i = 1; i < num_pools; i++) {
-			size_t iblt_slices, slices_recovered, txs_discarded;
+			size_t iblt_slices, slices_recovered, slices_discarded, txs_discarded;
 			int min_size = min_decode(block, added, removed,
 									  min_fee_per_byte, *coinbase->btx,
 									  peers[i],
 									  seed, blocknum,
-									  iblt_slices, slices_recovered, txs_discarded);
-			std::cout << "," << min_size << "," << iblt_slices << "," << slices_recovered << "," << txs_discarded;
+									  iblt_slices, slices_recovered, slices_discarded, txs_discarded);
+			std::cout << "," << min_size << "," << iblt_slices << "," << slices_recovered << "," << slices_discarded << "," << txs_discarded;
 		}
 		std::cout << std::endl;
 		blocknum++;
