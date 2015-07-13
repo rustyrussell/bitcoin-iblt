@@ -16,8 +16,6 @@ extern "C" {
 #include "ibltpool.h"
 #include <iostream>
 
-#define IBLT_SIZE 64
-
 static bool verbose;
 
 struct peer {
