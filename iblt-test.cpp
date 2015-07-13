@@ -294,6 +294,10 @@ static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknu
 
 	for (const auto &s: slices) {
 		if (count == 0) {
+			// Do we expect this to be the first fragment?
+			if (s.get_txid48().frag_base() != s.fragid) {
+				return fail(p, blocknum, txs_discarded, slices_recovered);
+			}
 			size_t num = s.slices_expected();
 			if (!num || num > 0xFFFF) {
 				return fail(p, blocknum, txs_discarded, slices_recovered);
@@ -311,11 +315,12 @@ static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknu
 				return fail(p, blocknum, txs_discarded, slices_recovered);
 			}
 			transaction[count++] = s;
-			if (count == transaction.size()) {
-				// We recovered the entire transaction!
-				// FIXME: Reconstruct block!
-				count = 0;
-			}
+		}
+		if (count == transaction.size()) {
+			// We recovered the entire transaction!
+			// FIXME: Reconstruct tx, check id48 correct.
+			// FIXME: Reconstruct block!
+			count = 0;
 		}
 	}
 
