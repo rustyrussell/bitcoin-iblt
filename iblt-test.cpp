@@ -437,7 +437,7 @@ static void forward_to_block(peer &p, size_t blocknum)
 	errx(1, "No block number %zu for peer %s", blocknum, p.file);
 }
 
-static int min_decode(std::unordered_set<const tx *> block,
+static size_t min_decode(std::unordered_set<const tx *> block,
 					  const txbitsSet &added,
 					  const txbitsSet &removed,
 					  u64 min_fee_per_byte,
@@ -446,10 +446,10 @@ static int min_decode(std::unordered_set<const tx *> block,
 					  size_t &iblt_slices, size_t &slices_recovered,
 					  size_t &slices_discarded, size_t &txs_discarded)
 {
-	// Try up to 4MB
-	const size_t max_possible = 4 * 1024 * 1024 / raw_iblt::WIRE_BYTES;
+	// Try up to 16MB worth of IBLT.
+	const size_t max_possible = 16 * 1024 * 1024 / IBLT_SIZE;
 	size_t min_buckets = 1, max_buckets = max_possible;
-	size_t num, data_size = -1;
+	size_t num, data_size = 16 * 1024 * 1024;
 
 	slices_recovered = txs_discarded = slices_discarded = iblt_slices = 0;
 	while (min_buckets != max_buckets) {
@@ -542,7 +542,7 @@ int main(int argc, char *argv[])
 		// See how small we can encode it for each peer.
 		for (size_t i = 1; i < num_pools; i++) {
 			size_t iblt_slices, slices_recovered, slices_discarded, txs_discarded;
-			int min_size = min_decode(block, added, removed,
+			size_t min_size = min_decode(block, added, removed,
 									  min_fee_per_byte, *coinbase->btx,
 									  peers[i],
 									  seed, blocknum,
