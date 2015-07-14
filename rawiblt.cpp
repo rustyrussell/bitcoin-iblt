@@ -81,7 +81,9 @@ std::vector<u8> raw_iblt::write() const
 
     // The joys of plain ol' data.
     memcpy(vec.data(), counts.data(), counts_len);
-    memcpy(vec.data() + counts_len, buckets.data(), buckets_len);
+    for (size_t i = 0; i < size(); i++)
+        memcpy(vec.data() + counts_len + i * buckets[i].size(),
+               buckets[i].as_bytes(), buckets[i].size());
     return vec;
 }
 
@@ -93,7 +95,10 @@ bool raw_iblt::read(const u8 *p, size_t len)
         return false;
 
     memcpy(counts.data(), p, counts_len);
-    memcpy(buckets.data(), p + counts_len, buckets_len);
+    for (size_t i = 0; i < size(); i++)
+        memcpy(buckets[i].as_bytes(),
+               p + counts_len + i * buckets[i].size(),
+               buckets[i].size());
     return true;
 }
 

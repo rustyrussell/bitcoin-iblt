@@ -60,7 +60,7 @@ iblt::iblt(const raw_iblt &theirs, const raw_iblt &ours)
 
     // XOR the two.
     // FIXME: do this faster, of course, using alignment assumptions.
-    for (size_t i = 0; i < riblt.buckets.size() * riblt.buckets[0].size(); i++) {
+    for (size_t i = 0; i < riblt.buckets.size() * sizeof(riblt.buckets[0]); i++) {
         dst[i] ^= src[i];
     }
 
