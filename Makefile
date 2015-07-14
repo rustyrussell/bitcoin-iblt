@@ -2,39 +2,49 @@ CCANDIR := ccan
 CFLAGS := -Wall -I$(CCANDIR) -g -O3 -flto
 IBLT_SIZE := 64
 CXXFLAGS := $(CFLAGS) -I../bitcoin-corpus -std=c++11 -DIBLT_SIZE=$(IBLT_SIZE) #-D_GLIBCXX_DEBUG
-OBJS := iblt-test.o iblt.o mempool.o sha256_double.o bitcoin_tx.o txslice.o murmur.o wire_encode.o ibltpool.o txslice.o rawiblt.o
+OBJS := iblt-test-$(IBLT_SIZE).o iblt-$(IBLT_SIZE).o mempool-$(IBLT_SIZE).o sha256_double.o bitcoin_tx.o txslice-$(IBLT_SIZE).o murmur.o wire_encode-$(IBLT_SIZE).o ibltpool-$(IBLT_SIZE).o txslice-$(IBLT_SIZE).o rawiblt-$(IBLT_SIZE).o
 HEADERS := iblt.h mempool.h sha256_double.h txid48.h bitcoin_tx.h txslice.h murmur.h wire_encode.h
 
 CCAN_OBJS := ccan-crypto-sha256.o ccan-err.o ccan-tal.o ccan-tal-str.o ccan-take.o ccan-list.o ccan-str.o ccan-opt-helpers.o ccan-opt.o ccan-opt-parse.o ccan-opt-usage.o ccan-read_write_all.o ccan-str-hex.o ccan-tal-grab_file.o ccan-noerr.o ccan-rbuf.o
 
-default: utils/add-to-txcache iblt-test
+default: utils/add-to-txcache iblt-test-$(IBLT_SIZE)
+
+%-$(IBLT_SIZE).o: %.cpp
+	$(COMPILE.cpp) $(OUTPUT_OPTION) $<
 
 # Where the uncompressed bitcoin-corpus files are.
 CORPUS_DIR := ../bitcoin-corpus
 CORPORA := au sf sf-rn sg
-OUTPUTS := $(foreach src, $(CORPORA), $(filter-out stats-$(src)_$(src)-$(IBLT_SIZE).output, $(foreach dst, $(CORPORA), stats-$(src)_$(dst)-$(IBLT_SIZE).output)))
+OUTPUTS := $(foreach src, $(CORPORA), stats-$(src)-$(IBLT_SIZE).output)
 
 stats: slicesrecovered-$(IBLT_SIZE).stats txsdiscarded-$(IBLT_SIZE).stats slicesdiscarded-$(IBLT_SIZE).stats total-bytes-$(IBLT_SIZE)
 
-stats-%-$(IBLT_SIZE).output: iblt-test
-	./iblt-test $(CORPUS_DIR)/`echo $* | cut -d_ -f1` $(CORPUS_DIR)/`echo $* | cut -d_ -f2` > $@
+stats-%-$(IBLT_SIZE).output: iblt-test-$(IBLT_SIZE)
+	./iblt-test-$(IBLT_SIZE) $(CORPUS_DIR)/$* $(filter-out $(CORPUS_DIR)/$*, $(foreach other,$(CORPORA),$(CORPUS_DIR)/$(other))) > $@
 
-# Output is ....,ibltslices,slicesrecovered,slicesdiscarded,txsdiscarded
-# From this, we can see how many how many slices recovered/discarded and txs discarded
+# Output is blocknum,blocksize,knownbytes,unknownbytes,mempoolbytes,addedbitsetsize,removedbitsetsize,A,A-ibltslices,A-slicesrecovered,A-slicesdiscarded,A-txsdiscarded,B,B-ibltslices,B-slicesrecovered,B-slicesdiscarded,B-txsdiscarded,C,C-ibltslices,C-slicesrecovered,C-slicesdiscarded,C-txsdiscarded
 
-slicesrecovered-$(IBLT_SIZE).stats: $(OUTPUTS)
-	(echo "IBLT slices, slices recovered"; sed -n 's/.*,\([0-9]*\),\([0-9]*\),0,0$$/\1,\2/p' $^ | grep -v ',0$$') > $@
+# We want ibltslices,slicesrecovered,slicesdiscarded,txsdiscarded for each one.
+iblt-data-$(IBLT_SIZE).stats: $(OUTPUTS)
+	tail -q -n +2 $^ | cut -d, -f8- | sed -e 's/[0-9]*,\([0-9]*,[0-9]*,[0-9]*,[0-9]*\),/\1\n/g' -e 's/[0-9]*,\([0-9]*,[0-9]*,[0-9]*,[0-9]*\)$$/\1/' > $@
 
-txsdiscarded-$(IBLT_SIZE).stats: $(OUTPUTS)
-	(echo "IBLT slices, txs discarded"; sed -n 's/.*,\([0-9]*\),0,[0-9]*,\([0-9]*\)$$/\1,\2/p' $^ | grep -v ',0$$') > $@
+# Non-zero slices recovered where none discarded
+slicesrecovered-$(IBLT_SIZE).stats: iblt-data-$(IBLT_SIZE).stats
+	(echo "IBLT slices, slices recovered"; grep ",0,0$$" $< | cut -d, -f1,2 | grep -v ',0$$') > $@
 
-slicesdiscarded-$(IBLT_SIZE).stats: $(OUTPUTS)
-	(echo "IBLT slices, slices discarded"; sed -n 's/.*,\([0-9]*\),0,\([0-9]*\),[0-9]*$$/\1,\2/p' $^ | grep -v ',0$$') > $@
+# Non-zero txs discarded where none recovered.
+txsdiscarded-$(IBLT_SIZE).stats: iblt-data-$(IBLT_SIZE).stats
+	(echo "IBLT slices, txs discarded"; grep "^[0-9]*,0," $< | cut -d, -f1,4 | grep -v ',0$$') > $@
 
+# Non-zero slices discarded where none recovered.
+slicesdiscarded-$(IBLT_SIZE).stats: iblt-data-$(IBLT_SIZE).stats
+	(echo "IBLT slices, slices discarded"; grep "^[0-9]*,0," $< | cut -d, -f1,3 | grep -v ',0$$') > $@
+
+# Sum total bytes for each one.
 total-bytes-$(IBLT_SIZE): $(OUTPUTS)
-	cut -d, -f8 $^ | awk '{ SUM += $$1 } END { print SUM }' > $@
+	tail -q -n +2 $^ | cut -d, -f8,13,18 | tr ',' '\012' | awk '{ SUM += $$1 } END { print SUM }' > $@
 
-iblt-test: $(OBJS) $(CCAN_OBJS)
+iblt-test-$(IBLT_SIZE): $(OBJS) $(CCAN_OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 utils/add-to-txcache: utils/add-to-txcache.o $(CCAN_OBJS)
