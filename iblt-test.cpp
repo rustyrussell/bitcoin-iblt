@@ -488,7 +488,7 @@ int main(int argc, char *argv[])
 {
 	// 352792 to 352810 is a time of backlog, so include that.
 	size_t blocknum = 352720, end = 352820;
-	u64 seed = 1;
+	u64 seed;
 
 	if (argc < 3)
 		errx(1, "Usage: %s [--range=a,b] <generator-corpus> <peer-corpus>...", argv[0]);
@@ -505,6 +505,7 @@ int main(int argc, char *argv[])
 		argv++;
 	}
 
+	seed = blocknum - 352719;
 	// We keep track of everyone's mempools.
 	size_t num_pools = argc - 1;
 	std::vector<peer> peers(num_pools);
