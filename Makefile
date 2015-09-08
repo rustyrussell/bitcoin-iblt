@@ -20,7 +20,7 @@ OUTPUTS := $(foreach src, $(CORPORA), stats-$(src)-$(IBLT_SIZE).output)
 stats: slicesrecovered-$(IBLT_SIZE).stats txsdiscarded-$(IBLT_SIZE).stats slicesdiscarded-$(IBLT_SIZE).stats total-bytes-$(IBLT_SIZE)
 
 stats-%-$(IBLT_SIZE).output: iblt-test-$(IBLT_SIZE)
-	./iblt-test-$(IBLT_SIZE) $(CORPUS_DIR)/$* $(filter-out $(CORPUS_DIR)/$*, $(foreach other,$(CORPORA),$(CORPUS_DIR)/$(other))) > $@
+	./iblt-test-$(IBLT_SIZE) $(IBLT_SEED) $(CORPUS_DIR)/$* $(filter-out $(CORPUS_DIR)/$*, $(foreach other,$(CORPORA),$(CORPUS_DIR)/$(other))) > $@
 
 # Output is blocknum,blocksize,knownbytes,unknownbytes,mempoolbytes,addedbitsetsize,removedbitsetsize,A,A-ibltslices,A-slicesrecovered,A-slicesdiscarded,A-txsdiscarded,B,B-ibltslices,B-slicesrecovered,B-slicesdiscarded,B-txsdiscarded,C,C-ibltslices,C-slicesrecovered,C-slicesdiscarded,C-txsdiscarded
 
@@ -52,7 +52,7 @@ utils/add-to-txcache: utils/add-to-txcache.o $(CCAN_OBJS)
 clean:
 	$(RM) $(OBJS) $(CCAN_OBJS)
 
-distcleaen: clean
+distclean: clean
 	$(RM) slicesrecovered-*.stats txsdiscarded-*.stats slicesdiscarded-*.stats total-bytes-*
 
 ccan-tal.o: $(CCANDIR)/ccan/tal/tal.c
