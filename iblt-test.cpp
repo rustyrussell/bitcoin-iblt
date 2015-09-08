@@ -488,24 +488,32 @@ int main(int argc, char *argv[])
 {
 	// 352792 to 352810 is a time of backlog, so include that.
 	size_t blocknum = 352720, end = 352820;
-	u64 seed;
+	u64 seed = 0;
 
 	if (argc < 3)
-		errx(1, "Usage: %s [--range=a,b] <generator-corpus> <peer-corpus>...", argv[0]);
+		errx(1, "Usage: %s [--range=a,b] [--seed=<seed>] <generator-corpus> <peer-corpus>...", argv[0]);
 
-	if (strncmp(argv[1], "--range=", strlen("--range=")) == 0) {
+	while (strncmp(argv[1], "--", 2) == 0) {
 		char *endp;
-		blocknum = strtoul(argv[1] + strlen("--range="), &endp, 10);
-		if (*endp != ',')
-			errx(1, "Invalid --range");
-		end = strtoul(endp+1, &endp, 10) + 1;
-		if (end <= blocknum)
-			errx(1, "Invalid --range");
+		if (strncmp(argv[1], "--range=", strlen("--range=")) == 0) {
+			blocknum = strtoul(argv[1] + strlen("--range="), &endp, 10);
+			if (*endp != ',')
+				errx(1, "Invalid --range");
+			end = strtoul(endp+1, &endp, 10) + 1;
+			if (end <= blocknum)
+				errx(1, "Invalid --range");
+		} else if (strncmp(argv[1], "--seed=", strlen("--seed=")) == 0){
+			seed = strtoul(argv[1] + strlen("--seed="), &endp, 10);
+			if (*endp || !seed)
+				errx(1, "Invalid --seed");
+		} else
+			errx(1, "Unknown argument %s", argv[1]);
 		argc--;
 		argv++;
 	}
 
-	seed = blocknum - 352719;
+	if (seed == 0)
+		seed = blocknum - 352719;
 	// We keep track of everyone's mempools.
 	size_t num_pools = argc - 1;
 	std::vector<peer> peers(num_pools);
