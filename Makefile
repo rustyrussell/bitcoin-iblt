@@ -1,13 +1,13 @@
 CCANDIR := ccan
-CFLAGS := -Wall -I$(CCANDIR) -g -O3 -flto
-IBLT_SIZE := 64
+CFLAGS := -Wall -I$(CCANDIR) -g #-O3 -flto
+IBLT_SIZE := 128
 CXXFLAGS := $(CFLAGS) -I../bitcoin-corpus -std=c++11 -DIBLT_SIZE=$(IBLT_SIZE) #-D_GLIBCXX_DEBUG
 OBJS := iblt-test-$(IBLT_SIZE).o iblt-$(IBLT_SIZE).o mempool-$(IBLT_SIZE).o sha256_double.o bitcoin_tx.o txslice-$(IBLT_SIZE).o murmur.o wire_encode-$(IBLT_SIZE).o ibltpool-$(IBLT_SIZE).o rawiblt-$(IBLT_SIZE).o
 HEADERS := iblt.h mempool.h sha256_double.h txid48.h bitcoin_tx.h txslice.h murmur.h wire_encode.h
 
 CCAN_OBJS := ccan-crypto-sha256.o ccan-err.o ccan-tal.o ccan-tal-str.o ccan-take.o ccan-list.o ccan-str.o ccan-opt-helpers.o ccan-opt.o ccan-opt-parse.o ccan-opt-usage.o ccan-read_write_all.o ccan-str-hex.o ccan-tal-grab_file.o ccan-noerr.o ccan-rbuf.o
 
-default: utils/add-to-txcache iblt-test-$(IBLT_SIZE)
+default: utils/add-to-txcache iblt-test-$(IBLT_SIZE) iblt-space buckets-for-txs
 
 %-$(IBLT_SIZE).o: %.cpp
 	$(COMPILE.cpp) $(OUTPUT_OPTION) $<
@@ -47,6 +47,10 @@ total-bytes-$(IBLT_SIZE): $(OUTPUTS)
 iblt-test-$(IBLT_SIZE): $(OBJS) $(CCAN_OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
+iblt-space: iblt-space.o iblt-$(IBLT_SIZE).o sha256_double.o bitcoin_tx.o txslice-$(IBLT_SIZE).o murmur.o wire_encode-$(IBLT_SIZE).o rawiblt-$(IBLT_SIZE).o $(CCAN_OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+buckets-for-txs: buckets-for-txs.o $(CCAN_OBJS)
 utils/add-to-txcache: utils/add-to-txcache.o $(CCAN_OBJS)
 
 clean:
