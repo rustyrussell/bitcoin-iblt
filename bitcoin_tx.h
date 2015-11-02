@@ -27,6 +27,14 @@ struct bitcoin_txid {
         stream.flags(saved);
         return stream;
     }
+
+    friend std::istream &operator>> (std::istream &s, bitcoin_txid &txid) {
+        char hexstr[65];
+        s.get(hexstr, sizeof(hexstr));
+        if (s)
+            txid = bitcoin_txid(hexstr, sizeof(hexstr)-1);
+        return s;
+    }
 };
 
 inline bool operator ==(const bitcoin_txid &lhs, const bitcoin_txid &rhs)
