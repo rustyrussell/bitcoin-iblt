@@ -2,8 +2,6 @@
 extern "C" {
 #include "bitcoin-corpus.h"
 #include <ccan/err/err.h>
-#include <ccan/str/hex/hex.h>
-#include <ccan/tal/grab_file/grab_file.h>
 #include <ccan/read_write_all/read_write_all.h>
 #include <ccan/tal/tal.h>
 
@@ -14,6 +12,7 @@ extern "C" {
 #include "mempool.h"
 #include "iblt.h"
 #include "ibltpool.h"
+#include "txcache.h"
 #include <iostream>
 
 static bool verbose;
@@ -47,40 +46,6 @@ static bitcoin_txid txid_from_corpus(const struct corpus_entry &e)
 		txid.shad.sha.u.u8[sizeof(e.txid.id)-1-n] = e.txid.id[n];
 	}
 	return txid;
-}
-
-static tx *get_tx(const bitcoin_txid &txid, bool must_exist = true)
-{
-	char filename[sizeof("txcache/01234567890123456789012345678901234567890123456789012345678901234567")] = "txcache/";
-	char *txstring;
-	const u8 *txbytes;
-	size_t len;
-	u64 fee;
-	tx *t;
-
-	txstring = filename + strlen("txcache/");
-	if (!hex_encode(txid.shad.sha.u.u8, sizeof(txid.shad.sha.u.u8),
-					txstring,
-					sizeof(filename) - strlen("txcache/")))
-		throw std::logic_error("txid doesn't fit in filename");
-
-	txbytes = (u8 *)grab_file(NULL, filename);
-	if (!txbytes) {
-		if (must_exist)
-			errx(1, "Could not find tx %s", txstring);
-		warnx("could not find tx %s", txstring);
-		return NULL;
-	}
-
-	len = tal_count(txbytes)-1;
-	if (len < 8)
-		errx(1, "Truncated %s", filename);
-	memcpy(&fee, txbytes, 8);
-	txbytes += 8;
-	len -= 8;
-	t = new tx(fee, new bitcoin_tx(&txbytes, &len));
-	assert(t->txid == txid);
-	return t;
 }
 
 static std::unordered_set<const tx *>
