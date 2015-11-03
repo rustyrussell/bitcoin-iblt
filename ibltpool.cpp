@@ -9,7 +9,7 @@ void ibltpool::add(const txid48 &id48, const tx *t)
     tree->insert(txwid48);
 }
 
-ibltpool::ibltpool(u64 s, const std::unordered_map<bitcoin_txid, tx *> &tx_by_txid)
+ibltpool::ibltpool(u64 s, const std::unordered_map<bitcoin_txid, const tx *> &tx_by_txid)
 	: seed(s), tree(new tx_tree())
 {
 	for (const auto &p : tx_by_txid) {

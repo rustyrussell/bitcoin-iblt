@@ -14,7 +14,7 @@ private:
 public:
     // For building it when generating actual block.
     // FIXME: Handle clashes!
-    ibltpool(u64 seed, const std::unordered_map<bitcoin_txid, tx *> &tx_by_txid);
+    ibltpool(u64 seed, const std::unordered_map<bitcoin_txid, const tx *> &tx_by_txid);
 
     ~ibltpool();
 
