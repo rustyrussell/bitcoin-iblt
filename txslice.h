@@ -35,5 +35,6 @@ struct txslice {
 };
 
 std::vector<txslice> slice_tx(const bitcoin_tx &btx, const txid48 &id);
+bool rebuild_tx(const std::vector<txslice> &slices, bitcoin_tx &btx);
 
 #endif // TXSLICE_H

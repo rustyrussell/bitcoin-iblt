@@ -95,3 +95,23 @@ varint_t txslice::slices_expected() const
     size_t len = sizeof(contents);
     return pull_varint(&p, &len);
 }
+
+bool rebuild_tx(const std::vector<txslice> &slices, bitcoin_tx &btx)
+{
+    u8 contents[sizeof(slices[0].contents) * slices.size()];
+    size_t i;
+
+    for (i = 0; i < slices.size(); i++)
+        memcpy(contents + sizeof(slices[i].contents) * i, slices[i].contents,
+               sizeof(slices[i].contents));
+    try {
+        const u8 *cursor = contents;
+        size_t len = sizeof(contents);
+        if (pull_varint(&cursor, &len) != slices[0].slices_expected())
+            return false;
+        btx = bitcoin_tx(&cursor, &len);
+    } catch (std::runtime_error &e) {
+        return false;
+    }
+    return true;
+}
