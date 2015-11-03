@@ -103,7 +103,6 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 	min_fee_per_byte = 10 << 13;
 
 	// Create set of added txs.
-	added = txbitsSet(48);
 
 	// We include *everything* in our mempool; this ensures that our
 	// "added" bitset distinguishes uniquely in our mempool.
@@ -121,7 +120,6 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 
 	size_t num_removed = 0;
 	// What didn't we include, that would be expected?
-	removed = txbitsSet(48);
 	for (const auto &t : pool.tx_by_txid48) {
 		if (t.second->satoshi_per_byte() >= min_fee_per_byte) {
 			if (block.find(t.second) == block.end()) {

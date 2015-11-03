@@ -88,13 +88,11 @@ bool decode_bitset(const u8 **p, size_t *len, txbitsSet &bset)
     min = pull_varint(p, len);
     num = pull_varint(p, len);
 
-    // Empty set?  Might as well stop here.
-    if (!num) {
-        bset = txbitsSet();
-        return true;
-    }
+    // Too large? */
+    if (num > bset.size())
+        return false;
 
-    bset = txbitsSet(min + num);
+    bset = txbitsSet();
     std::vector<varint_t> nums(min + num);
 
     // Now we read in the number for each of those
