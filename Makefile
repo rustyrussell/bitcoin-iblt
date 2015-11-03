@@ -50,7 +50,7 @@ iblt-test-$(IBLT_SIZE): $(OBJS) $(CCAN_OBJS)
 iblt-space: iblt-space.o iblt-$(IBLT_SIZE).o sha256_double.o bitcoin_tx.o txslice-$(IBLT_SIZE).o murmur.o wire_encode.o rawiblt-$(IBLT_SIZE).o $(CCAN_OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-iblt-selection-heuristic: iblt-selection-heuristic.o sha256_double.o bitcoin_tx.o txcache.o murmur.o ibltpool.o wire_encode.o $(CCAN_OBJS)
+iblt-selection-heuristic: iblt-selection-heuristic.o sha256_double.o bitcoin_tx.o txcache.o murmur.o ibltpool.o wire_encode.o io.o $(CCAN_OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 iblt-selection-heuristic.o: iblt-selection-heuristic.cpp
