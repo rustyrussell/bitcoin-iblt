@@ -17,58 +17,15 @@
 // For each peer, after each <BLOCK-LINE>:
 // <MEMPOOL-LINE> := mempool:<PEERNAME>:<TXID>*
 
-#include "txcache.h"
 #include "txtree.h"
 #include "ibltpool.h"
+#include "io.h"
 #include <stdexcept>
-#include <iostream>
-#include <fstream>
-#include <unordered_map>
 #include <cassert>
 #include <algorithm>
 
-typedef std::unordered_map<bitcoin_txid, const tx *> txmap;
 static bool verbose = false;
 
-static std::istream &input_file(const char *argv)
-{
-	if (!argv)
-		return std::cin;
-	return *(new std::ifstream(argv, std::ios::in));
-}
-
-static bool get_txid(std::istream &in, bitcoin_txid &txid)
-{
-	switch (in.get()) {
-	case '\n':
-		return false;
-	case ':':
-		in >> txid;
-		if (!in)
-			throw std::runtime_error("Expected txid");
-		return true;
-	default:
-		throw std::runtime_error("Expected :");
-	}
-}
-
-static txmap read_txids(std::istream &in)
-{
-	txmap map;
-	bitcoin_txid txid;
-
-	while (get_txid(in, txid)) {
-		tx *t = get_tx(txid, false);
-		// Ingore unknowns; we warn already.
-		if (!t)
-			continue;
-		map.insert(std::make_pair(txid, t));
-	}
-	return map;
-}
-
-typedef std::pair<const bitcoin_txid, u64> txidfee;
-				  
 // Sorts low to high
 static bool fee_compare(const tx *a, const tx *b)
 {
@@ -158,36 +115,18 @@ int main(int argc, char *argv[])
 	std::default_random_engine generator;
 	std::uniform_real_distribution<double> distribution(0.0,1.0);	
 
-	while (in) {
-		unsigned int blocknum, overhead;
+	unsigned int blocknum, overhead;
+	txmap block;
+
+	while (read_blockline(in, &blocknum, &overhead, &block)) {
 		bitcoin_txid txid;
-		txmap block;
-
-		in >> blocknum;
-		if (!in) break;
-
-		if (in.get() != ':')
-			throw std::runtime_error("Bad blocknum or :");
-		in >> overhead;
-		block = read_txids(in);
-
 		txbitsSet added_list, removed_list;
 		u64 fee_hint;
+
+		txmap mempool;
+		std::string peername;
 		bool first_peer = true;
-
-		while (!in.eof() && in.peek() == 'm') {
-			std::string mempoolstr;
-			std::getline(in, mempoolstr, ':');
-			if (mempoolstr != "mempool")
-				throw std::runtime_error("Bad mempool line");
-			std::string peername;
-			while (in.peek() != ':' && in.peek() != '\n') {
-				if (!in)
-					throw std::runtime_error("Bad peername");
-				peername += in.get();
-			}
-
-			txmap mempool = read_txids(in);
+		while (read_mempool(in, &peername, &mempool)) {
 			ibltpool ibltpool(seed, mempool);
 
 			if (first_peer) {
@@ -234,10 +173,7 @@ int main(int argc, char *argv[])
 				overhead += bytes.size();
 				first_peer = false;
 
-				std::cout << blocknum << ":" << overhead;
-				for (const auto &pair: block)
-					std::cout << ":" << pair.first;
-				std::cout << std::endl;
+				write_blockline(std::cout, blocknum, overhead, block);
 				
 				// We don't output mempool for first peer, since that's
 				// not relevant; they're doing the transmission.
@@ -273,14 +209,7 @@ int main(int argc, char *argv[])
 				}
 			}
 
-			// Now selection criteria will filter in all txs in the block, but
-			// there can be false positives if a txid48 matches one of the
-			// included bit prefixes.
-			std::cout << "mempool:" << peername;
-			for (const auto &tx: newmempool) {
-				std::cout << ":" << tx.first;
-			}
-			std::cout << std::endl;
+			write_mempool(std::cout, peername, newmempool);
 		}
 	}
 }
