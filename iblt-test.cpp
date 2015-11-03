@@ -13,6 +13,7 @@ extern "C" {
 #include "iblt.h"
 #include "ibltpool.h"
 #include "txcache.h"
+#include "txtree.h"
 #include <iostream>
 
 static bool verbose;
@@ -106,14 +107,14 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 
 	// We include *everything* in our mempool; this ensures that our
 	// "added" bitset distinguishes uniquely in our mempool.
-	ibltpool pool(seed, p.mp);
+	ibltpool pool(seed, p.mp.tx_by_txid);
 
 	// FIXME: Sorting by fee per byte would speed this a little.
 	for (const auto &txp : block) {
 		// If this was an exception to our minimum, encode it.
 		if (txp->satoshi_per_byte() < min_fee_per_byte) {
 			txid48 id48(seed, txp->txid);
-			std::vector<bool> bvec = pool.get_unique_bitid(id48);
+			std::vector<bool> bvec = pool.tree->get_unique_bitid(id48);
 			added[bvec.size()].insert(bvec);
 		}
 	}
@@ -124,7 +125,7 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 	for (const auto &t : pool.tx_by_txid48) {
 		if (t.second->satoshi_per_byte() >= min_fee_per_byte) {
 			if (block.find(t.second) == block.end()) {
-				std::vector<bool> bvec = pool.get_unique_bitid(t.first);
+				std::vector<bool> bvec = pool.tree->get_unique_bitid(t.first);
 				removed[bvec.size()].insert(bvec);
 				num_removed++;
 			}
@@ -170,16 +171,14 @@ static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknu
 	raw_iblt their_riblt = wire_decode(in, cb, min_fee_per_byte, seed, added, removed);
 
 	// Create ids from my mempool, using their seed.
-	ibltpool pool(seed, p.mp);
+	ibltpool pool(seed, p.mp.tx_by_txid);
 
 	// Start building up candidates.
 	std::unordered_set<const tx *> candidates;
 
 	// First, take all which exceed the given satoshi_per_byte.
-	for (auto it = pool.tx_by_value.lower_bound(min_fee_per_byte);
-		 it != pool.tx_by_value.end();
-		 ++it) {
-		candidates.insert(it->second);
+	for (const auto it: pool.tx_by_txid48) {
+		candidates.insert(it.second);
 	}
 
 	// Now, remove any which they explicity said to remove

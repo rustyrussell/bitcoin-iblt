@@ -14,22 +14,15 @@ private:
 public:
     // For building it when generating actual block.
     // FIXME: Handle clashes!
-    ibltpool(u64 seed, const mempool &mp);
+    ibltpool(u64 seed, const std::unordered_map<bitcoin_txid, tx *> &tx_by_txid);
 
     ~ibltpool();
-
-    /* For encoding: get the bitid for this tx */
-    std::vector<bool> get_unique_bitid(const txid48 &id48);
 
     /* For decoding: get the txs (if any) matching this bitid. */
     std::vector<const tx *> get_txs(const std::vector<bool> &vec);
 
-    // We need txs sorted by satoshi per byte.
-    // FIXME: Actually, we only need a set of below and a set of above.
-    std::multimap<u64, const tx *> tx_by_value;
-
     // We also need it in a binary tree of txid48, for encoding additions.
-    class tx_node *tree;
+    class tx_tree *tree;
 
     // And a map of txid48s -> txs.
     std::unordered_map<txid48, const tx *> tx_by_txid48;
