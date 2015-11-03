@@ -161,6 +161,37 @@ static bool fail(const peer &p,
 	return false;
 }
 
+static raw_iblt wire_decode(const std::vector<u8> &incoming,
+                     bitcoin_tx &coinbase,
+                     u64 &min_fee_per_byte,
+                     u64 &seed,
+                     txbitsSet &added,
+                     txbitsSet &removed)
+{
+    size_t len = incoming.size();
+    const u8 *p = incoming.data();
+    varint_t size;
+
+    seed = pull_varint(&p, &len);
+    min_fee_per_byte = pull_varint(&p, &len);
+    size = pull_varint(&p, &len);
+    coinbase = bitcoin_tx(&p, &len);
+    
+    if (!decode_bitset(&p, &len, added) || !decode_bitset(&p, &len, removed))
+        throw std::runtime_error("bad bitset");
+
+    // Sanity check size first: forget it if it's bigger than 100M.
+    if (size > 100 * 1024 * 1024 / IBLT_SIZE)
+        throw std::runtime_error("bad size");
+
+    raw_iblt iblt(size);
+    // Fails if not exactly the right amount left.
+    if (!iblt.read(p, len))
+        throw std::runtime_error("bad iblt");
+      
+    return iblt;
+}
+
 static bool decode_block(const peer &p, const std::vector<u8> in, size_t blocknum, size_t &slices_recovered, size_t &slices_discarded, size_t &txs_discarded)
 {
 	bitcoin_tx cb(varint_t(0), varint_t(0));
@@ -404,6 +435,29 @@ static void forward_to_block(peer &p, size_t blocknum)
 		}
 	} while (p.next_entry());
 	errx(1, "No block number %zu for peer %s", blocknum, p.file);
+}
+
+static std::vector<u8> wire_encode(const bitcoin_tx &coinbase,
+								   const u64 min_fee_per_byte,
+								   const u64 seed,
+								   const txbitsSet &added,
+								   const txbitsSet &removed,
+								   const raw_iblt &iblt)
+{
+    std::vector<u8> arr;
+
+    add_varint(seed, add_linearize, &arr);
+    add_varint(min_fee_per_byte, add_linearize, &arr);
+    add_varint(iblt.size(), add_linearize, &arr);
+    coinbase.add_tx(add_linearize, &arr);
+
+    add_bitset(&arr, added);
+    add_bitset(&arr, removed);
+
+    std::vector<u8> ib = iblt.write();
+    add_linearize(ib.data(), ib.size(), &arr);
+
+    return arr;
 }
 
 static size_t min_decode(std::unordered_set<const tx *> block,

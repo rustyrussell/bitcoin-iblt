@@ -2,7 +2,7 @@
 #include "bitcoin_tx.h"
 #include <cassert>
 
-static void add_linearize(const void *data, size_t len, void *pvec)
+void add_linearize(const void *data, size_t len, void *pvec)
 {
     std::vector<u8> *vec = (std::vector<u8> *)pvec;
 
@@ -58,29 +58,6 @@ void add_bitset(std::vector<u8> *arr, const txbitsSet &bset)
     add_linearize(bits.data(), bits.size(), arr);
 }
                 
-std::vector<u8> wire_encode(const bitcoin_tx &coinbase,
-                            const u64 min_fee_per_byte,
-                            const u64 seed,
-                            const txbitsSet &added,
-                            const txbitsSet &removed,
-                            const raw_iblt &iblt)
-{
-    std::vector<u8> arr;
-
-    add_varint(seed, add_linearize, &arr);
-    add_varint(min_fee_per_byte, add_linearize, &arr);
-    add_varint(iblt.size(), add_linearize, &arr);
-    coinbase.add_tx(add_linearize, &arr);
-
-    add_bitset(&arr, added);
-    add_bitset(&arr, removed);
-
-    std::vector<u8> ib = iblt.write();
-    add_linearize(ib.data(), ib.size(), &arr);
-
-    return arr;
-}
-
 static bool pull_bit(const u8 **p, size_t *len, unsigned int *bitoff)
 {
     bool b;
@@ -103,7 +80,7 @@ static bool pull_bit(const u8 **p, size_t *len, unsigned int *bitoff)
     return b;
 }
 
-static bool pull_bitset(const u8 **p, size_t *len, txbitsSet &bset)
+bool decode_bitset(const u8 **p, size_t *len, txbitsSet &bset)
 {
     varint_t min, num;
 
@@ -156,35 +133,4 @@ static bool pull_bitset(const u8 **p, size_t *len, txbitsSet &bset)
     }
 
     return *p != NULL;
-}
-
-raw_iblt wire_decode(const std::vector<u8> &incoming,
-                     bitcoin_tx &coinbase,
-                     u64 &min_fee_per_byte,
-                     u64 &seed,
-                     txbitsSet &added,
-                     txbitsSet &removed)
-{
-    size_t len = incoming.size();
-    const u8 *p = incoming.data();
-    varint_t size;
-
-    seed = pull_varint(&p, &len);
-    min_fee_per_byte = pull_varint(&p, &len);
-    size = pull_varint(&p, &len);
-    coinbase = bitcoin_tx(&p, &len);
-    
-    if (!pull_bitset(&p, &len, added) || !pull_bitset(&p, &len, removed))
-        throw std::runtime_error("bad bitset");
-
-    // Sanity check size first: forget it if it's bigger than 100M.
-    if (size > 100 * 1024 * 1024 / IBLT_SIZE)
-        throw std::runtime_error("bad size");
-
-    raw_iblt iblt(size);
-    // Fails if not exactly the right amount left.
-    if (!iblt.read(p, len))
-        throw std::runtime_error("bad iblt");
-      
-    return iblt;
 }
