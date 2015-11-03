@@ -10,11 +10,10 @@
 
 // FIXME: Leaky hack
 class mempool {
-private:
+public:
     // A map of txids -> txs.
     std::unordered_map<bitcoin_txid, tx *> tx_by_txid;
 
-public:
     mempool() { }
     ~mempool() { }
     void add(tx *t) {
@@ -28,7 +27,5 @@ public:
     
     // Membership check.
     tx *find(const bitcoin_txid &id);
-
-    friend class ibltpool;
 };
 #endif // MEMPOOL_H
