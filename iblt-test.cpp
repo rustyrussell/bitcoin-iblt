@@ -65,7 +65,7 @@ generate_block(peer &p, size_t blocknum, u64 seed,
 
 	// Top up mempool with any txs we didn't know, get all txs in the block.
 	while (p.next_entry()) {
-		tx *t;
+		const tx *t;
 
 		switch (corpus_entry_type(&p.e)) {
 		// These two cover the entire block contents.

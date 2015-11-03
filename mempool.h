@@ -12,11 +12,11 @@
 class mempool {
 public:
     // A map of txids -> txs.
-    std::unordered_map<bitcoin_txid, tx *> tx_by_txid;
+    std::unordered_map<bitcoin_txid, const tx *> tx_by_txid;
 
     mempool() { }
     ~mempool() { }
-    void add(tx *t) {
+    void add(const tx *t) {
         tx_by_txid.insert(std::make_pair(t->txid, t));
     }
     bool del(const bitcoin_txid &txid) {
@@ -26,6 +26,6 @@ public:
     size_t length() const;
     
     // Membership check.
-    tx *find(const bitcoin_txid &id);
+    const tx *find(const bitcoin_txid &id);
 };
 #endif // MEMPOOL_H
