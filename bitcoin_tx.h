@@ -21,8 +21,9 @@ struct bitcoin_txid {
 
     friend std::ostream& operator<< (std::ostream& stream, const bitcoin_txid& txid) {
         std::ostream::fmtflags saved(stream.flags());
+        // Output backwards...
         for (size_t i = 0; i < sizeof(txid.shad.sha.u.u8); i++) {
-            stream << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)txid.shad.sha.u.u8[i];
+            stream << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)txid.shad.sha.u.u8[sizeof(txid.shad.sha.u.u8)-1-i];
         }
         stream.flags(saved);
         return stream;

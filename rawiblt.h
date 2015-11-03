@@ -3,6 +3,7 @@
 // C++ implementation of an Invertible Bloom Lookup Table.
 #include "txid48.h"
 #include "txslice.h"
+#include "io.h"
 #include <vector>
 #include <set>
 #include <unordered_set>
@@ -16,6 +17,7 @@ public:
     raw_iblt(size_t size);
     // Construct an IBLT from a series of transactions.
     raw_iblt(size_t size, u64 seed, const std::unordered_set<const tx *> &txs);
+    raw_iblt(size_t size, u64 seed, const txmap &txs);
 
     // Get size arg as passed to constructor.
     size_t size() const;
