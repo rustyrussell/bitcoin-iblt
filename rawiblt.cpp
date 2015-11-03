@@ -74,6 +74,17 @@ raw_iblt::raw_iblt(size_t size, u64 seed,
     }
 }
 
+raw_iblt::raw_iblt(size_t size, u64 seed,
+                   const txmap &txs)
+    : buckets(size), counts(size)
+{
+    for (const auto &t : txs) {
+        for (const auto &s : slice_tx(*t.second->btx, txid48(seed, t.first))) {
+            insert(s);
+        }
+    }
+}
+
 std::vector<u8> raw_iblt::write() const
 {
     size_t buckets_len = size() * buckets[0].size(), counts_len = size() * sizeof(counts[0]);
