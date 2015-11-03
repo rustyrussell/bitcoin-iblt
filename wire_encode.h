@@ -5,7 +5,6 @@ extern "C" {
 }
 #include <vector>
 #include <unordered_set>
-#include "iblt.h"
 
 class bitcoin_tx;
 
@@ -13,19 +12,9 @@ class bitcoin_tx;
 // ie. txbitsSet[0] contains 0 bit strings (none), txbitsSet[48] contains 48 bit strings.
 typedef std::vector<std::unordered_set<std::vector<bool>>> txbitsSet;
 
-std::vector<u8> wire_encode(const bitcoin_tx &coinbase,
-                            const u64 min_fee_per_byte,
-                            const u64 seed,
-			    const txbitsSet &added,
-			    const txbitsSet &removed,
-                            const raw_iblt &iblt);
-
-raw_iblt wire_decode(const std::vector<u8> &incoming,
-		     bitcoin_tx &coinbase,
-		     u64 &min_fee_per_byte,
-		     u64 &seed,
-		     txbitsSet &added,
-		     txbitsSet &removed);
+// Helper for using add_* routines from bitcoin_tx.h
+void add_linearize(const void *data, size_t len, void *pvec);
 
 void add_bitset(std::vector<u8> *arr, const txbitsSet &bset);
+bool decode_bitset(const u8 **p, size_t *len, txbitsSet &bset);
 #endif // WIRE_ENCODE_H
