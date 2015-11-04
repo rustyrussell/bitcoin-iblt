@@ -52,22 +52,17 @@ static size_t varint_len(varint_t v)
     }
 }
 
-static inline size_t num_slices_for(size_t s)
-{
-        return (s + IBLT_SIZE-1) / IBLT_SIZE;
-}
-
 std::vector<txslice> slice_tx(const bitcoin_tx &btx, const txid48 &id)
 {
     // Optimistically assume we'll fit len in single byte.
-    varint_t n_slices = num_slices_for(1 + btx.length());
+    varint_t n_slices = txslice::num_slices_for(1 + btx.length());
 
     // If it would take 3 bytes to encode we have to recalculate.
     if (varint_len(n_slices) > 1) {
             // We only have 16 bit slice ids
             assert(n_slices <= 0xffff);
-            n_slices = num_slices_for(varint_len(n_slices)
-                                             + btx.length());
+            n_slices = txslice::num_slices_for(varint_len(n_slices)
+                                               + btx.length());
     }
             
     std::vector<txslice> vec(n_slices);

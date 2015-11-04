@@ -25,7 +25,10 @@ struct txslice {
 	u8 *as_bytes() { return (u8 *)this; }
 	const u8 *as_bytes() const { return (const u8 *)this; }
 	static size_t size() { return 8 + IBLT_SIZE; }
-
+	static size_t num_slices_for(size_t bytes) {
+		return (bytes + IBLT_SIZE-1) / IBLT_SIZE;
+	}
+	
 	txid48 get_txid48() const { return txid48(txidbits); }
 
 	bool empty() const;
