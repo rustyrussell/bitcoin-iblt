@@ -1,6 +1,6 @@
 // This code takes blocks, iblts and mempools and tries to decode them.
 // It produces output as:
-// blocknum,peername,[0|1]
+// blocknum,ibltbytes,peername,[0|1]
 
 extern "C" {
 #include <ccan/err/err.h>
@@ -15,7 +15,7 @@ extern "C" {
 #include <cassert>
 #include <algorithm>
 
-static raw_iblt *read_iblt(std::istream &in, u64 *seed)
+static raw_iblt *read_iblt(std::istream &in, size_t *ibltsize, u64 *seed)
 {
 	std::string ibltstr;
 	std::getline(in, ibltstr, ':');
@@ -27,7 +27,8 @@ static raw_iblt *read_iblt(std::istream &in, u64 *seed)
 	if (!in)
 		throw std::runtime_error("Bad iblt hex line");
 
-	u8 data[hex_data_size(iblthex.size())];
+	*ibltsize = hex_data_size(iblthex.size());
+	u8 data[*ibltsize];
 	if (!hex_decode(iblthex.c_str(), iblthex.size(), data, sizeof(data)))
 		throw std::runtime_error("Bad iblt hex");
 
@@ -163,7 +164,8 @@ int main(int argc, char *argv[])
 
 	while (read_blockline(in, &blocknum, &overhead, &block)) {
 		u64 seed;
-		raw_iblt *theirs = read_iblt(in, &seed);
+		size_t ibltsize;
+		raw_iblt *theirs = read_iblt(in, &ibltsize, &seed);
 
 		txmap mempool;
 		std::string peername;
@@ -171,7 +173,7 @@ int main(int argc, char *argv[])
 			// Create our equivalent iblt.
 			raw_iblt ours(theirs->size(), seed, mempool);
 
-			std::cout << blocknum << "," << peername << ","
+			std::cout << blocknum << "," << ibltsize << "," << peername << ","
 					  << recover_block(*theirs, ours, seed, mempool, block)
 					  << std::endl;
 		}

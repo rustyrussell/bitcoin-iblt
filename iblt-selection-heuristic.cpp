@@ -174,9 +174,10 @@ int main(int argc, char *argv[])
 				first_peer = false;
 
 				write_blockline(std::cout, blocknum, overhead, block);
-				
-				// We don't output mempool for first peer, since that's
-				// not relevant; they're doing the transmission.
+
+				// We write out mempool for first peer, so IBLT can do
+				// adaptive blocks based on how much this peer knows.
+				write_mempool(std::cout, peername, mempool);
 				continue;
 			}
 
