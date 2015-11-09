@@ -26,7 +26,6 @@ tx *get_tx(const bitcoin_txid &txid, bool must_exist)
 	if (!txbytes) {
 		if (must_exist)
 			errx(1, "Could not find tx %s", txstring);
-		warnx("could not find tx %s", txstring);
 		return NULL;
 	}
 

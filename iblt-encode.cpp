@@ -70,13 +70,14 @@ int main(int argc, char *argv[])
 
 	unsigned int blocknum, overhead;
 	txmap block;
+	std::unordered_set<bitcoin_txid> unknowns;
 
-	while (read_blockline(in, &blocknum, &overhead, &block)) {
+	while (read_blockline(in, &blocknum, &overhead, &block, &unknowns)) {
 		size_t buckets;
 
 		std::string peername;
 		txmap mempool;
-		if (!read_mempool(in, &peername, &mempool))
+		if (!read_mempool(in, &peername, &mempool, &unknowns))
 			errx(1, "Failed reading first mempool line");
 
 		if (fixed_buckets) {
@@ -98,6 +99,9 @@ int main(int argc, char *argv[])
 
 		// Don't encode if it'll be larger than block itself!
 		size_t blocksz = total_size(block);
+		std::cerr << "Blocknum: " << blocknum << std::endl;
+		std::cerr << "Encoded size: " << encoded.size() << std::endl;
+		std::cerr << "Raw blocksize: " << blocksz << std::endl;
 		if (encoded.size() >= blocksz) {
 			overhead += blocksz;
 			write_blockline(std::cout, blocknum, overhead, block);
@@ -110,7 +114,7 @@ int main(int argc, char *argv[])
 			std::cout << "iblt:" << hexstr << std::endl;
 		}
 
-		while (read_mempool(in, &peername, &mempool)) {
+		while (read_mempool(in, &peername, &mempool, &unknowns)) {
 			write_mempool(std::cout, peername, mempool);
 		}
 	}

@@ -167,14 +167,14 @@ int main(int argc, char *argv[])
 	unsigned int blocknum, overhead;
 	txmap block;
 
-	while (read_blockline(in, &blocknum, &overhead, &block)) {
+	while (read_blockline(in, &blocknum, &overhead, &block, NULL)) {
 		u64 seed;
 		size_t ibltsize;
 		raw_iblt *theirs = read_iblt(in, &ibltsize, &seed);
 
 		txmap mempool;
 		std::string peername;
-		while (read_mempool(in, &peername, &mempool)) {
+		while (read_mempool(in, &peername, &mempool, NULL)) {
 			if (!theirs) {
 				std::cout << blocknum << "," << overhead << ",0,"
 						  << peername << ","
