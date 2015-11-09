@@ -32,7 +32,17 @@ static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 	// Meanwhile, assume 2x overhead.
 	return slices * 2;
 }
-	
+
+static size_t total_size(const txmap &block)
+{
+	size_t sum = 0;
+
+	for (const auto &pair: block) {
+		sum += pair.second->btx->length();
+	}
+	return sum;
+}
+
 int main(int argc, char *argv[])
 {
 	u64 seed = 1;
@@ -85,12 +95,20 @@ int main(int argc, char *argv[])
 		encoded.insert(encoded.end(), seedstr, seedstr + sizeof(seedstr));
 		std::vector<u8> riblt_encoded = riblt.write();
 		encoded.insert(encoded.end(), riblt_encoded.begin(), riblt_encoded.end());
-		overhead += encoded.size();
 
-		write_blockline(std::cout, blocknum, overhead, block);
-		char hexstr[hex_str_size(encoded.size())];
-		hex_encode(encoded.data(), encoded.size(), hexstr, sizeof(hexstr));
-		std::cout << "iblt:" << hexstr << std::endl;
+		// Don't encode if it'll be larger than block itself!
+		size_t blocksz = total_size(block);
+		if (encoded.size() >= blocksz) {
+			overhead += blocksz;
+			write_blockline(std::cout, blocknum, overhead, block);
+		} else {
+			overhead += encoded.size();
+
+			write_blockline(std::cout, blocknum, overhead, block);
+			char hexstr[hex_str_size(encoded.size())];
+			hex_encode(encoded.data(), encoded.size(), hexstr, sizeof(hexstr));
+			std::cout << "iblt:" << hexstr << std::endl;
+		}
 
 		while (read_mempool(in, &peername, &mempool)) {
 			write_mempool(std::cout, peername, mempool);
