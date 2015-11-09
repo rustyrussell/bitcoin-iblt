@@ -117,8 +117,9 @@ int main(int argc, char *argv[])
 
 	unsigned int blocknum, overhead;
 	txmap block;
+	std::unordered_set<bitcoin_txid> unknowns;
 
-	while (read_blockline(in, &blocknum, &overhead, &block)) {
+	while (read_blockline(in, &blocknum, &overhead, &block, &unknowns)) {
 		bitcoin_txid txid;
 		txbitsSet added_list, removed_list;
 		u64 fee_hint;
@@ -126,7 +127,7 @@ int main(int argc, char *argv[])
 		txmap mempool;
 		std::string peername;
 		bool first_peer = true;
-		while (read_mempool(in, &peername, &mempool)) {
+		while (read_mempool(in, &peername, &mempool, &unknowns)) {
 			ibltpool ibltpool(seed, mempool);
 
 			if (first_peer) {

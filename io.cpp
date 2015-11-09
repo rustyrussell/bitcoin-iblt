@@ -1,6 +1,10 @@
 #include "io.h"
 #include <fstream>
 #include "txcache.h"
+extern "C" {
+#include <ccan/str/hex/hex.h>
+#include <ccan/err/err.h>
+};
 
 // Input and output are of forms:
 // <FILE> := <BLOCKDESC>*
@@ -35,16 +39,22 @@ static bool get_txid(std::istream &in, bitcoin_txid &txid)
 	}
 }
 
-static txmap read_txids(std::istream &in)
+static txmap read_txids(std::istream &in,
+						std::unordered_set<bitcoin_txid> *unknown)
 {
 	txmap map;
 	bitcoin_txid txid;
 
 	while (get_txid(in, txid)) {
 		tx *t = get_tx(txid, false);
-		// Ingore unknowns; we warn already.
-		if (!t)
+		if (!t) {
+			if (!unknown || unknown->insert(txid).second) {
+				char hexstr[hex_str_size(sizeof(txid))];
+				hex_encode(&txid.shad, sizeof(txid.shad), hexstr, sizeof(hexstr));
+				warnx("could not find tx %s", hexstr);
+			}
 			continue;
+		}
 		map.insert(std::make_pair(txid, t));
 	}
 	return map;
@@ -52,7 +62,8 @@ static txmap read_txids(std::istream &in)
 
 bool read_blockline(std::istream &in,
 					unsigned int *blocknum, unsigned int *overhead,
-					txmap *block)
+					txmap *block,
+					std::unordered_set<bitcoin_txid> *unknown)
 {
 	in >> *blocknum;
 	if (!in)
@@ -61,12 +72,13 @@ bool read_blockline(std::istream &in,
 	if (in.get() != ':')
 		throw std::runtime_error("Bad blocknum or :");
 	in >> *overhead;
-	*block = read_txids(in);
+	*block = read_txids(in, unknown);
 	return true;
 }
 	
 bool read_mempool(std::istream &in,
-				  std::string *peername, txmap *mempool)
+				  std::string *peername, txmap *mempool,
+				  std::unordered_set<bitcoin_txid> *unknown)
 {
 	if (in.peek() != 'm')
 		return false;
@@ -83,7 +95,7 @@ bool read_mempool(std::istream &in,
 		*peername += in.get();
 	}
 
-	*mempool = read_txids(in);
+	*mempool = read_txids(in, unknown);
 	return true;
 }
 
