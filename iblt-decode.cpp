@@ -1,6 +1,6 @@
 // This code takes blocks, iblts and mempools and tries to decode them.
 // It produces output as:
-// blocknum,ibltbytes,peername,[0|1]
+// blocknum,overhead,ibltbytes,peername,[0|1]
 
 extern "C" {
 #include <ccan/err/err.h>
@@ -18,6 +18,11 @@ extern "C" {
 static raw_iblt *read_iblt(std::istream &in, size_t *ibltsize, u64 *seed)
 {
 	std::string ibltstr;
+
+	// If they choose not to IBLT encode.
+	if (in.peek() != 'i')
+		return NULL;
+
 	std::getline(in, ibltstr, ':');
 	if (ibltstr != "iblt")
 		throw std::runtime_error("Bad iblt line");
@@ -170,12 +175,20 @@ int main(int argc, char *argv[])
 		txmap mempool;
 		std::string peername;
 		while (read_mempool(in, &peername, &mempool)) {
-			// Create our equivalent iblt.
-			raw_iblt ours(theirs->size(), seed, mempool);
+			if (!theirs) {
+				std::cout << blocknum << "," << overhead << ",0,"
+						  << peername << ","
+						  << true
+						  << std::endl;
+			} else {
+				// Create our equivalent iblt.
+				raw_iblt ours(theirs->size(), seed, mempool);
 
-			std::cout << blocknum << "," << ibltsize << "," << peername << ","
-					  << recover_block(*theirs, ours, seed, mempool, block)
-					  << std::endl;
+				std::cout << blocknum << "," << overhead << "," << ibltsize
+						  << "," << peername << ","
+						  << recover_block(*theirs, ours, seed, mempool, block)
+						  << std::endl;
+			}
 		}
 	}
 }
