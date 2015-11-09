@@ -543,7 +543,7 @@ int main(int argc, char *argv[])
 	}
 
 	std::cout << "blocknum,blocksize,knownbytes,unknownbytes,mempoolbytes,addedbitsetsize,removedbitsetsize";
-	for (size_t i = 2; i < argc; i++) {
+	for (int i = 2; i < argc; i++) {
 		const char *slash = strrchr(argv[i], '/');
 		if (!slash)
 			slash = argv[1];
