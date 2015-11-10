@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
 	u64 seed = 1;
 	size_t fixed_buckets = 0;
 
-	while (strncmp(argv[1], "--", 2) == 0) {
+	while (argv[1] && strncmp(argv[1], "--", 2) == 0) {
 		char *endp;
 		if (strncmp(argv[1], "--seed=", strlen("--seed=")) == 0) {
 			seed = strtoul(argv[1] + strlen("--seed="), &endp, 10);
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 		argv++;
 	}
 
-	if (argc != 2)
+	if (argc > 2)
 			errx(1, "Usage: %s [--seed=<seed>][--buckets=buckets]", argv[0]);
 	std::istream &in = input_file(argv[1]);
 
