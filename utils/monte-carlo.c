@@ -77,7 +77,9 @@ static bool add_and_extract(unsigned *arr, unsigned *counts, unsigned buckets,
 	}
 	return i == -2;
 }
-	
+
+#define NUM_RUNS 1000000
+
 int main(int argc, char *argv[])
 {
 	unsigned elements, *arr, *counts;
@@ -118,20 +120,20 @@ int main(int argc, char *argv[])
 		else
 			buckets = (min + max) / 2;
 
-		for (i = 0; i < 1000000; i++)
+		for (i = 0; i < NUM_RUNS; i++)
 			successes += add_and_extract(arr, counts, buckets,
 						     elements, i);
 		if (verbose)
 			printf("%u: %5g%%\n",
-			       buckets, successes * 100.0 / 1000000);
+			       buckets, successes * 100.0 / NUM_RUNS);
 		if (naive) {
-			if (successes >= 950000) {
+			if (successes >= NUM_RUNS * 95 / 100) {
 				found = true;
 				break;
 			}
 			min++;
 		} else {
-			if (successes >= 950000) {
+			if (successes >= NUM_RUNS * 95 / 100) {
 				max = buckets;
 				found = true;
 			} else {
