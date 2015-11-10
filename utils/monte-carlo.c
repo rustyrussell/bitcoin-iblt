@@ -39,31 +39,26 @@ static void remove_element(unsigned *arr, unsigned *counts, unsigned buckets,
 	}
 }
 
-static int find_singleton(const unsigned *counts, unsigned buckets)
+
+static int find_singleton(const unsigned *counts, unsigned buckets, int prev)
 {
-	bool empty = true;
 	size_t i;
 
-	for (i = 0; i < buckets; i++) {
-		switch (counts[i]) {
-		case 0:
-			break;
-		case 1:
+	for (i = prev; i < buckets; i++) {
+		if (counts[i] == 1)
 			return i;
-		default:
-			empty = false;
-		}
 	}
-
-	if (empty)
-		return -2;
+	for (i = 0; i < prev; i++) {
+		if (counts[i] == 1)
+			return i;
+	}
 	return -1;
 }
 
 static bool add_and_extract(unsigned *arr, unsigned *counts, unsigned buckets,
 			    unsigned elements, unsigned round)
 {
-	int i;
+	int i, bucket = 0;
 
 	memset(arr, 0, sizeof(*arr) * buckets);
 	memset(counts, 0, sizeof(*counts) * buckets);
@@ -71,11 +66,14 @@ static bool add_and_extract(unsigned *arr, unsigned *counts, unsigned buckets,
 	for (i = 0; i < elements; i++)
 		add_element(arr, counts, buckets, round, i);
 
-	while ((i = find_singleton(counts, buckets)) >= 0) {
-		assert(i < buckets);
-		remove_element(arr, counts, buckets, round, arr[i]);
+	for (i = 0; i < elements; i++) {
+		bucket = find_singleton(counts, buckets, bucket);
+		if (bucket < 0)
+			return false;
+		assert(bucket < buckets);
+		remove_element(arr, counts, buckets, round, arr[bucket]);
 	}
-	return i == -2;
+	return true;
 }
 
 #define NUM_RUNS 1000000
