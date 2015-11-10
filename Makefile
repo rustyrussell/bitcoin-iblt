@@ -5,9 +5,9 @@ CXXFLAGS := $(CFLAGS) -I../bitcoin-corpus -std=c++11 -DIBLT_SIZE=$(IBLT_SIZE) #-
 OBJS := iblt-test-$(IBLT_SIZE).o iblt-$(IBLT_SIZE).o mempool-$(IBLT_SIZE).o sha256_double.o bitcoin_tx.o txslice-$(IBLT_SIZE).o murmur.o wire_encode.o ibltpool.o rawiblt-$(IBLT_SIZE).o txcache.o
 HEADERS := iblt.h mempool.h sha256_double.h txid48.h bitcoin_tx.h txslice.h murmur.h wire_encode.h txcache.h
 
-CCAN_OBJS := ccan-crypto-sha256.o ccan-err.o ccan-tal.o ccan-tal-str.o ccan-take.o ccan-list.o ccan-str.o ccan-opt-helpers.o ccan-opt.o ccan-opt-parse.o ccan-opt-usage.o ccan-read_write_all.o ccan-str-hex.o ccan-tal-grab_file.o ccan-noerr.o ccan-rbuf.o
+CCAN_OBJS := ccan-crypto-sha256.o ccan-err.o ccan-tal.o ccan-tal-str.o ccan-take.o ccan-list.o ccan-str.o ccan-opt-helpers.o ccan-opt.o ccan-opt-parse.o ccan-opt-usage.o ccan-read_write_all.o ccan-str-hex.o ccan-tal-grab_file.o ccan-noerr.o ccan-rbuf.o ccan-hash.o
 
-default: utils/add-to-txcache iblt-test-$(IBLT_SIZE) iblt-space buckets-for-txs iblt-selection-heuristic iblt-encode iblt-decode
+default: utils/add-to-txcache utils/monte-carlo iblt-test-$(IBLT_SIZE) iblt-space buckets-for-txs iblt-selection-heuristic iblt-encode iblt-decode
 
 %-$(IBLT_SIZE).o: %.cpp
 	$(COMPILE.cpp) $(OUTPUT_OPTION) $<
@@ -65,6 +65,7 @@ iblt-selection-heuristic.o: iblt-selection-heuristic.cpp
 
 buckets-for-txs: buckets-for-txs.o $(CCAN_OBJS)
 utils/add-to-txcache: utils/add-to-txcache.o $(CCAN_OBJS)
+utils/monte-carlo: utils/monte-carlo.o $(CCAN_OBJS)
 
 clean:
 	$(RM) $(OBJS) $(CCAN_OBJS)
@@ -105,4 +106,6 @@ ccan-str-hex.o: $(CCANDIR)/ccan/str/hex/hex.c
 ccan-crypto-sha256.o: $(CCANDIR)/ccan/crypto/sha256/sha256.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 ccan-rbuf.o: $(CCANDIR)/ccan/rbuf/rbuf.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+ccan-hash.o: $(CCANDIR)/ccan/hash/hash.c
 	$(CC) $(CFLAGS) -c -o $@ $<
