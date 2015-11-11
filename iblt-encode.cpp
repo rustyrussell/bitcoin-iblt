@@ -67,13 +67,29 @@ static struct buckets_for_slices bfors_table[] = {
 	{ 900,1147 },
 	{ 1000,1271 },
 	{ 2000,2510 },
-	
+	{ 3000,3745 }	
 };
+
+/*
+ * Full corpus results for various settings:
+ * INITIAL_TXS		EXTRA_FACTOR	Size		Number Correct (of 2112)
+ * 1				1.0				13843452	1885
+ * 2				1.0	            15564618	1949
+ * 3				1.0             16886340    1972
+ * 1				1.1             14652786	1912
+ * 2				1.1				16516038    1983
+ * 3				1.1				17979912    1999
+ */
+
+// Base to assume how different their mempool is
+#define INITIAL_TXS 1
+// Magnification for final result.
+#define EXTRA_FACTOR 1.0
 
 static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 {
-	// Start with enough slices to decode a median 300-byte tx.
-	size_t slices = txslice::num_slices_for(300);
+	// Start with enough slices to decode two 300-byte txs.
+	size_t slices = txslice::num_slices_for(300) * INITIAL_TXS;
 
 	// Now add in each tx we didn't know about.
 	for (const auto &pair: block) {
@@ -90,7 +106,7 @@ static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 		factor = (double)bfors_table[i].buckets / bfors_table[i].slices;
 	}
 
-	return slices * factor;
+	return slices * factor * EXTRA_FACTOR;
 }
 
 static size_t total_size(const txmap &block)
