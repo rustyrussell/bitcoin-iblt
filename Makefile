@@ -2,50 +2,18 @@ CCANDIR := ccan
 CFLAGS := -Wall -I$(CCANDIR) -g -O3 -flto
 IBLT_SIZE := 64
 CXXFLAGS := $(CFLAGS) -I../bitcoin-corpus -std=c++11 -DIBLT_SIZE=$(IBLT_SIZE) #-D_GLIBCXX_DEBUG
-OBJS := iblt-test-$(IBLT_SIZE).o iblt-$(IBLT_SIZE).o mempool-$(IBLT_SIZE).o sha256_double.o bitcoin_tx.o txslice-$(IBLT_SIZE).o murmur.o wire_encode.o ibltpool.o rawiblt-$(IBLT_SIZE).o txcache.o
-HEADERS := iblt.h mempool.h sha256_double.h txid48.h bitcoin_tx.h txslice.h murmur.h wire_encode.h txcache.h
+OBJS := iblt-test-$(IBLT_SIZE).o iblt-$(IBLT_SIZE).o mempool-$(IBLT_SIZE).o sha256_double.o bitcoin_tx.o txslice-$(IBLT_SIZE).o murmur.o wire_encode.o ibltpool.o rawiblt-$(IBLT_SIZE).o txcache.o io.o
+HEADERS := bitcoin_tx.h iblt.h ibltpool.h io.h mempool.h murmur.h rawiblt.h sha256_double.h txcache.h tx.h txid48.h txslice.h txtree.h wire_encode.h
 
 CCAN_OBJS := ccan-crypto-sha256.o ccan-err.o ccan-tal.o ccan-tal-str.o ccan-take.o ccan-list.o ccan-str.o ccan-opt-helpers.o ccan-opt.o ccan-opt-parse.o ccan-opt-usage.o ccan-read_write_all.o ccan-str-hex.o ccan-tal-grab_file.o ccan-noerr.o ccan-rbuf.o ccan-hash.o
 
-default: utils/add-to-txcache utils/monte-carlo iblt-test-$(IBLT_SIZE) iblt-space buckets-for-txs iblt-selection-heuristic iblt-encode iblt-decode
+default: utils/add-to-txcache utils/monte-carlo iblt-space buckets-for-txs iblt-selection-heuristic iblt-encode iblt-decode
+
+# Simply make all objs depend on all headers. 
+$(OBJS): $(HEADERS)
 
 %-$(IBLT_SIZE).o: %.cpp
 	$(COMPILE.cpp) $(OUTPUT_OPTION) $<
-
-# Where the uncompressed bitcoin-corpus files are.
-CORPUS_DIR := ../bitcoin-corpus
-CORPORA := au sf sf-rn sg
-OUTPUTS := $(foreach src, $(CORPORA), stats-$(src)-$(IBLT_SIZE).output)
-
-stats: slicesrecovered-$(IBLT_SIZE).stats txsdiscarded-$(IBLT_SIZE).stats slicesdiscarded-$(IBLT_SIZE).stats total-bytes-$(IBLT_SIZE)
-
-stats-%-$(IBLT_SIZE).output: iblt-test-$(IBLT_SIZE)
-	./iblt-test-$(IBLT_SIZE) $(IBLT_SEED) $(CORPUS_DIR)/$* $(filter-out $(CORPUS_DIR)/$*, $(foreach other,$(CORPORA),$(CORPUS_DIR)/$(other))) > $@
-
-# Output is blocknum,blocksize,knownbytes,unknownbytes,mempoolbytes,addedbitsetsize,removedbitsetsize,A,A-ibltslices,A-slicesrecovered,A-slicesdiscarded,A-txsdiscarded,B,B-ibltslices,B-slicesrecovered,B-slicesdiscarded,B-txsdiscarded,C,C-ibltslices,C-slicesrecovered,C-slicesdiscarded,C-txsdiscarded
-
-# We want ibltslices,slicesrecovered,slicesdiscarded,txsdiscarded for each one.
-iblt-data-$(IBLT_SIZE).stats: $(OUTPUTS)
-	tail -q -n +2 $^ | cut -d, -f8- | sed -e 's/[0-9]*,\([0-9]*,[0-9]*,[0-9]*,[0-9]*\),/\1\n/g' -e 's/[0-9]*,\([0-9]*,[0-9]*,[0-9]*,[0-9]*\)$$/\1/' > $@
-
-# Non-zero slices recovered where none discarded
-slicesrecovered-$(IBLT_SIZE).stats: iblt-data-$(IBLT_SIZE).stats
-	(echo "IBLT slices, slices recovered"; grep ",0,0$$" $< | cut -d, -f1,2 | grep -v ',0$$') > $@
-
-# Non-zero txs discarded where none recovered.
-txsdiscarded-$(IBLT_SIZE).stats: iblt-data-$(IBLT_SIZE).stats
-	(echo "IBLT slices, txs discarded"; grep "^[0-9]*,0," $< | cut -d, -f1,4 | grep -v ',0$$') > $@
-
-# Non-zero slices discarded where none recovered.
-slicesdiscarded-$(IBLT_SIZE).stats: iblt-data-$(IBLT_SIZE).stats
-	(echo "IBLT slices, slices discarded"; grep "^[0-9]*,0," $< | cut -d, -f1,3 | grep -v ',0$$') > $@
-
-# Sum total bytes for each one.
-total-bytes-$(IBLT_SIZE): $(OUTPUTS)
-	tail -q -n +2 $^ | cut -d, -f8,13,18 | tr ',' '\012' | awk '{ SUM += $$1 } END { print SUM }' > $@
-
-iblt-test-$(IBLT_SIZE): $(OBJS) $(CCAN_OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^
 
 iblt-space: iblt-space.o iblt-$(IBLT_SIZE).o sha256_double.o bitcoin_tx.o txslice-$(IBLT_SIZE).o murmur.o wire_encode.o rawiblt-$(IBLT_SIZE).o $(CCAN_OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^

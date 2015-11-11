@@ -2,10 +2,9 @@ Bitcoin IBLT Test Code
 ======================
 
 This proposes a wire format for sending bitcoin IBLT data, it then
-evaluates the minimum possible bytes to successfully send a block
-between nodes, using real node data from the bitcoin-corpus:
+simulates sending that between nodes, using input from:
 
-	https://github.com/rustyrussell/bitcoin-corpus
+	https://github.com/rustyrussell/weak-blocks
 
 Technical Details
 -----------------
@@ -35,9 +34,6 @@ The [wire format](wire_encode.cpp) contains:
 6. A bitset of identifiers of transactions not included in the block.
 7. The IBLT itself.
 
-When generating a block, I assume we record the minimum fee per byte
-(ignoring any free transactions).
-
 To create an IBLT from a block:
 
 1. Pick a 64-bit seed, and encode all the txids in the mempool (try
@@ -61,38 +57,28 @@ Recovery of a block from an IBLT proceeds as follows:
 6. Subtract this iblt from the received iblt.
 7. Recover iblt as normal.
 
-
 How to Use
 ----------
-You need a bunch of mempool data and transactions (with fee
-information).  I have included (most of) the transactions for the
-bitcoin-corpus in txcache.tar.xz.
+You can feed in the data from weak-blocks/results, which includes non-weak
+examples.  The first "mempool" line is assumed to be the peer sending
+the block to the other peers.
 
-1. Fetch https://github.com/rustyrussell/bitcoin-corpus and unxz the corpuses
-   you want to play with.
-2. Unpack the transactions into txcache:
-   `$ tar cvfJ txcache.xz`
-3. Run the program like this:
-   `$ ./iblt-test ../bitcoin-corpus/au ../bitcoin-corpus/{sf,sf-rn,sg}`
+Each program is a filter, as follows:
 
-You will get output like this:
+1. `iblt-selection-heuristic`: creates the seed, fee hint, and trees for included/excluded, and uses these to trim the mempools appropriately for the next step.
+2. `iblt-encode`: encode the block from the first peer, by default basing the IBLT size on the amount the first peer would require to extract the block.
+3. `iblt-decode`: try to recover the block for each peer.
 
-    blocknum,blocksize,knownbytes,unknownbytes,mempoolbytes,addedbitesetsize,removedbitsetsize,sf,sf-rn,sg
-    352720,674752,674650,0,793136,1550,5,55020,1738,1738
-    352721,372504,372384,0,393241,748,2,951,951,1691
+The `iblt-decode` output is as follows:
 
-The fields are as follows:
+```
+blocknum,bytes,ibltbytes,peername,[0|1]
+```
 
-1. *blocknum*: the block number.
-2. *blocksize*: the total size of the block (sum of transactions).
-3. *knownbytes*: the bytes of transactions this node had in its mempool already.
-4. *unknownbytes*: the bytes of transactions this node didn't have in mempool.
-   (the two will add up to less than blocksize, since coinbase isn't counted)
-5. *mempoolbytes*: the bytes in the mempool once we'd added any unknowns.
-6. *addedbitsetsize*: size of the "added" bitset on the wire.
-7. *removedbitsetsize*: size of the "removed" bitset on the wire.
-8. The rest are the minimum bytes which allowed each node to
-   reconstruct the block.
+Where `bytes` is the the number of bytes for the block header,
+coinbase, seed, fee hint and added/removed sets as well as the
+iblt. `ibltbytes` is the raw IBLT size, `peername` is the recipient,
+and the final field is `1` if reconstruction succeeded, `0` if not.
 
 TODO
 ----
