@@ -14,6 +14,62 @@ extern "C" {
 #include <cassert>
 #include <algorithm>
 
+// Calculated to hit 95% chance of reconstruction: see utils/monte-carlo.c
+struct buckets_for_slices {
+	unsigned int slices, buckets;
+};
+
+static struct buckets_for_slices bfors_table[] = {
+	{ 1,5 },
+	{ 2,9 },
+	{ 3,12 }, /* 4x */
+	{ 4,15 },
+	{ 5,17 },
+	{ 6,20 },
+	{ 7,22 },
+	{ 8,24 },
+	{ 9,27 }, /* 3x */
+	{ 10,29 },
+	{ 11,31 },
+	{ 12,32 },
+	{ 13,34 },
+	{ 14,36 },
+	{ 15,38 },
+	{ 16,40 },
+	{ 17,41 },
+	{ 18,43 },
+	{ 19,45 },
+	{ 20,46 },
+	{ 21,48 },
+	{ 22,49 },
+	{ 23,51 },
+	{ 24,53 },
+	{ 25,54 },
+	{ 26,56 },
+	{ 27,57 },
+	{ 28,58 },
+	{ 29,60 },
+	{ 30,61 }, /* 2x */
+	{ 40,75 },
+	{ 50,88 },
+	{ 60,100 },
+	{ 70,112 },
+	{ 80,124 },
+	{ 90,137 },
+	{ 100,149 }, /* 1.5x */
+	{ 200,273 },
+	{ 300,398 },
+	{ 400,524 },
+	{ 500,649 },
+	{ 600,774 },
+	{ 700,898 },
+	{ 800,1023 },
+	{ 900,1147 },
+	{ 1000,1271 },
+	{ 2000,2510 },
+	
+};
+
 static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 {
 	// Start with enough slices to decode a median 300-byte tx.
@@ -26,11 +82,15 @@ static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 		slices += txslice::num_slices_for(pair.second->btx->length());
 	}
 
-	// FIXME: Figure out the number of buckets we need to give 95% chance that
-	// at least one has only a single element in it.
+	// Find previous entry in table, use that factor to give 95% chance
+	double factor = 0;
+	for (size_t i = 0; i < sizeof(bfors_table)/sizeof(bfors_table[0]); i++) {
+		if (bfors_table[i].slices > slices)
+			break;
+		factor = (double)bfors_table[i].buckets / bfors_table[i].slices;
+	}
 
-	// Meanwhile, assume 2x overhead.
-	return slices * 2;
+	return slices * factor;
 }
 
 static size_t total_size(const txmap &block)
