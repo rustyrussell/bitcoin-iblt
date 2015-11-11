@@ -123,6 +123,7 @@ int main(int argc, char *argv[])
 {
 	u64 seed = 1;
 	size_t fixed_buckets = 0;
+	bool do_iblt = true;
 
 	while (argv[1] && strncmp(argv[1], "--", 2) == 0) {
 		char *endp;
@@ -134,6 +135,8 @@ int main(int argc, char *argv[])
 			fixed_buckets = strtoul(argv[1] + strlen("--buckets="), &endp, 10);
 			if (*endp || !fixed_buckets)
 				errx(1, "Invalid --buckets");
+		} else if (strcmp(argv[1], "--no-iblt") == 0) {
+			do_iblt = false;
 		} else
 			errx(1, "Unknown argument %s", argv[1]);
 		argc--;
@@ -175,7 +178,7 @@ int main(int argc, char *argv[])
 
 		// Don't encode if it'll be larger than block itself!
 		size_t blocksz = total_size(block);
-		if (encoded.size() >= blocksz) {
+		if (encoded.size() >= blocksz || !do_iblt) {
 			overhead += blocksz;
 			write_blockline(std::cout, blocknum, overhead, block);
 		} else {
