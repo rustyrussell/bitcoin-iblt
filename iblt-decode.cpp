@@ -23,7 +23,7 @@ static raw_iblt *read_iblt(std::istream &in, size_t *ibltsize, u64 *seed)
 	if (in.peek() != 'i')
 		return NULL;
 
-	std::getline(in, ibltstr, ':');
+	std::getline(in, ibltstr, ',');
 	if (ibltstr != "iblt")
 		throw std::runtime_error("Bad iblt line");
 

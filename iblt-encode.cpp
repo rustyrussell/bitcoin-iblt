@@ -1,5 +1,5 @@
 // This code takes blocks and mempools and uses an IBLT to encode them,
-// producing iblt:<hex> lines in the output.
+// producing iblt,<hex> lines in the output.
 
 extern "C" {
 #include <ccan/err/err.h>
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
 			write_blockline(std::cout, blocknum, overhead, block);
 			char hexstr[hex_str_size(encoded.size())];
 			hex_encode(encoded.data(), encoded.size(), hexstr, sizeof(hexstr));
-			std::cout << "iblt:" << hexstr << std::endl;
+			std::cout << "iblt," << hexstr << std::endl;
 		}
 
 		while (read_mempool(in, &peername, &mempool, &unknowns)) {
