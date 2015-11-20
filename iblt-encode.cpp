@@ -78,14 +78,14 @@ static struct buckets_for_slices bfors_table[] = {
 };
 
 /*
- * Full corpus results for various settings:
- * INITIAL_TXS		EXTRA_FACTOR	Size		Number Correct (of 2112)
- * 1				1.0				13843452	1885
- * 2				1.0	            15564618	1949
- * 3				1.0             16886340    1972
- * 1				1.1             14652786	1912
- * 2				1.1				16516038    1983
- * 3				1.1				17979912    1999
+ * Full corpus results for various settings (2163 transmissions):
+ * INITIAL_TXS		EXTRA_FACTOR	Size		Correct		% Correct
+ * 1				1.0				18892455	1941		90
+ * 2				1.0				20651139	2012		93
+ * 3				1.0				21690027	2045		95
+ * 1				1.1				19786149	1969		91
+ * 2				1.1				22002165	2035		94
+ * 3				1.1				23186535	2062		95
  */
 
 // Base to assume how different their mempool is
