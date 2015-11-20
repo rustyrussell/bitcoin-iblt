@@ -191,6 +191,8 @@ int main(int argc, char *argv[])
 				}
 			}
 
+			size_t num_added = 0, num_removed = 0;
+
 			// Now insert any added.
 			for (size_t i = 0; i < added_list.size(); i++) {
 				for (const auto &v: added_list[i]) {
@@ -198,6 +200,7 @@ int main(int argc, char *argv[])
 						// This can get false positives; fortunately insert()
 						// does nothing if it already exists.
 						newmempool.insert(std::make_pair(tx->txid, tx));
+						num_added++;
 					}
 				}
 			}
@@ -206,15 +209,18 @@ int main(int argc, char *argv[])
 			for (size_t i = 0; i < removed_list.size(); i++) {
 				for (const auto &v: removed_list[i]) {
 					for (const auto &tx: ibltpool.get_txs(v)) {
+						num_removed++;
 						newmempool.erase(tx->txid);
 					}
 				}
 			}
 
+			if (verbose) {
+				std::cerr << peername << ":" << std::endl;
+				std::cerr << "Txs added: " << num_added << std::endl;
+				std::cerr << "Txs removed: " << num_removed << std::endl;
+			}
 			write_mempool(std::cout, peername, newmempool);
 		}
 	}
 }
-		
-			
-			
