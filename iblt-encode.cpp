@@ -77,21 +77,13 @@ static struct buckets_for_slices bfors_table[] = {
 	{ 10000,12355 }
 };
 
-/*
- * Full corpus results for various settings (2163 transmissions):
- * INITIAL_TXS		EXTRA_FACTOR	Size		Correct		% Correct
- * 1				1.0				18892455	1941		90
- * 2				1.0				20651139	2012		93
- * 3				1.0				21690027	2045		95
- * 1				1.1				19786149	1969		91
- * 2				1.1				22002165	2035		94
- * 3				1.1				23186535	2062		95
- */
-
 // Base to assume how different their mempool is
-#define INITIAL_TXS 1
-// Magnification for final result.
-#define EXTRA_FACTOR 1.0
+#define INITIAL_TXS 2
+// Magnification for slices.
+// Stats from ibltdata-post-heuristic 352304-353024:
+// Mempool-only total = 4642
+// Block-only total = 7574
+#define SLICE_FACTOR ((7574 + 4642) / 7574.0)
 
 static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 {
@@ -105,6 +97,8 @@ static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 		slices += txslice::num_slices_for(pair.second->btx->length());
 	}
 
+	slices *= SLICE_FACTOR;
+
 	// Find previous entry in table, use that factor to give 95% chance
 	double factor = 0;
 	for (size_t i = 0; i < sizeof(bfors_table)/sizeof(bfors_table[0]); i++) {
@@ -113,7 +107,7 @@ static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 		factor = (double)bfors_table[i].buckets / bfors_table[i].slices;
 	}
 
-	return slices * factor * EXTRA_FACTOR;
+	return slices * factor;
 }
 
 static size_t total_size(const txmap &block)
