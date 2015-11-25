@@ -1,5 +1,5 @@
 CCANDIR := ccan
-CFLAGS := -Wall -I$(CCANDIR) -g -O3 -flto
+CFLAGS := -Wall -I$(CCANDIR) -g -O3 -flto $(EXTRAFLAGS)
 IBLT_SIZE := 64
 CXXFLAGS := $(CFLAGS) -I../bitcoin-corpus -std=c++11 -DIBLT_SIZE=$(IBLT_SIZE) #-D_GLIBCXX_DEBUG
 OBJS := iblt-test-$(IBLT_SIZE).o iblt-$(IBLT_SIZE).o mempool-$(IBLT_SIZE).o sha256_double.o bitcoin_tx.o txslice-$(IBLT_SIZE).o murmur.o wire_encode.o ibltpool.o rawiblt-$(IBLT_SIZE).o txcache.o io.o

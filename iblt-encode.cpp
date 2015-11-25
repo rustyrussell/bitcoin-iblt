@@ -78,17 +78,28 @@ static struct buckets_for_slices bfors_table[] = {
 };
 
 // Base to assume how different their mempool is
-#define INITIAL_TXS 2
+#ifndef INITIAL_SLICES
+/* This is txslice::num_slices_for(300) * 2 */
+#define INITIAL_SLICES 10
+#endif
+
 // Magnification for slices.
 // Stats from ibltdata-post-heuristic 352304-353024:
 // Mempool-only total = 4642
 // Block-only total = 7574
-#define SLICE_FACTOR ((7574 + 4642) / 7574.0)
+#ifndef SLICE_FACTOR
+#define SLICE_FACTOR 1
+#endif
+
+// Magnification after slice calculation.
+#ifndef EXTRA_FACTOR
+#define EXTRA_FACTOR 1.35
+#endif
 
 static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 {
 	// Start with enough slices to decode two 300-byte txs.
-	size_t slices = txslice::num_slices_for(300) * INITIAL_TXS;
+	size_t slices = INITIAL_SLICES;
 
 	// Now add in each tx we didn't know about.
 	for (const auto &pair: block) {
@@ -107,7 +118,7 @@ static size_t dynamic_buckets(const txmap &block, const txmap &mempool)
 		factor = (double)bfors_table[i].buckets / bfors_table[i].slices;
 	}
 
-	return slices * factor;
+	return slices * factor * EXTRA_FACTOR;
 }
 
 static size_t total_size(const txmap &block)
