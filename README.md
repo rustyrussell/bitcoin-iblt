@@ -63,6 +63,11 @@ You can feed in the data from weak-blocks/results, which includes non-weak
 examples.  The first "mempool" line is assumed to be the peer sending
 the block to the other peers.
 
+You also need a txcache/ directory to map txids to the actual
+transactions and their fee amount.  You can generate this yourself
+using `utils/create-txcache.sh` or simply unpack `txcache.tar.xz` (and
+`txcache-352304.tar.xz` for block 352304).
+
 Each program is a filter, as follows:
 
 1. `iblt-selection-heuristic`: creates the seed, fee hint, and trees for included/excluded, and uses these to trim the mempools appropriately for the next step.
