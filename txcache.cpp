@@ -12,6 +12,7 @@ tx *get_tx(const bitcoin_txid &txid, bool must_exist)
 	char filename[sizeof("txcache/01234567890123456789012345678901234567890123456789012345678901234567")] = "txcache/";
 	char *txstring;
 	const u8 *txbytes;
+	u8 *bytes;
 	size_t len;
 	u64 fee;
 	tx *t;
@@ -22,7 +23,7 @@ tx *get_tx(const bitcoin_txid &txid, bool must_exist)
 					sizeof(filename) - strlen("txcache/")))
 		throw std::logic_error("txid doesn't fit in filename");
 
-	txbytes = (u8 *)grab_file(NULL, filename);
+	txbytes = bytes = (u8 *)grab_file(NULL, filename);
 	if (!txbytes) {
 		if (must_exist)
 			errx(1, "Could not find tx %s", txstring);
@@ -37,5 +38,6 @@ tx *get_tx(const bitcoin_txid &txid, bool must_exist)
 	len -= 8;
 	t = new tx(fee, new bitcoin_tx(&txbytes, &len));
 	assert(t->txid == txid);
+	tal_free(bytes);
 	return t;
 }
