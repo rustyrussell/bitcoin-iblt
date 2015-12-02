@@ -162,13 +162,14 @@ int main(int argc, char *argv[])
 	unsigned int blocknum, overhead;
 	txmap block;
 	std::unordered_set<bitcoin_txid> unknowns;
+	std::unordered_map<bitcoin_txid, tx *> knowns;
 
-	while (read_blockline(in, &blocknum, &overhead, &block, &unknowns)) {
+	while (read_blockline(in, &blocknum, &overhead, &block, &knowns, &unknowns)) {
 		size_t buckets;
 
 		std::string peername;
 		txmap mempool;
-		if (!read_mempool(in, &peername, &mempool, &unknowns))
+		if (!read_mempool(in, &peername, &mempool, &knowns, &unknowns))
 			errx(1, "Failed reading first mempool line");
 
 		if (fixed_buckets) {
@@ -202,7 +203,7 @@ int main(int argc, char *argv[])
 			std::cout << "iblt," << hexstr << std::endl;
 		}
 
-		while (read_mempool(in, &peername, &mempool, &unknowns)) {
+		while (read_mempool(in, &peername, &mempool, &knowns, &unknowns)) {
 			write_mempool(std::cout, peername, mempool);
 		}
 	}

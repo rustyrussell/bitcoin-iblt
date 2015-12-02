@@ -15,7 +15,7 @@ extern "C" {
 #include <cassert>
 #include <algorithm>
 
-static raw_iblt *read_iblt(std::istream &in, size_t *ibltsize, u64 *seed)
+static raw_iblt *read_iblt(std::istream &in, size_t *ibltslices, u64 *seed)
 {
 	std::string ibltstr;
 
@@ -32,14 +32,14 @@ static raw_iblt *read_iblt(std::istream &in, size_t *ibltsize, u64 *seed)
 	if (!in)
 		throw std::runtime_error("Bad iblt hex line");
 
-	*ibltsize = hex_data_size(iblthex.size());
-	u8 data[*ibltsize];
+	size_t ibltsize = hex_data_size(iblthex.size());
+	u8 data[ibltsize];
 	if (!hex_decode(iblthex.c_str(), iblthex.size(), data, sizeof(data)))
 		throw std::runtime_error("Bad iblt hex");
 
 	const u8 *p = data;
 	size_t len = sizeof(data);
-	u64 size = pull_varint(&p, &len);
+	*ibltslices = pull_varint(&p, &len);
 	if (!p)
 		throw std::runtime_error("Bad iblt size");
 
@@ -49,7 +49,7 @@ static raw_iblt *read_iblt(std::istream &in, size_t *ibltsize, u64 *seed)
 	p += 16;
 	len -= 16;
 
-	raw_iblt *riblt = new raw_iblt(size);
+	raw_iblt *riblt = new raw_iblt(*ibltslices);
 	if (!riblt->read(p, len))
 		throw std::runtime_error("Bad iblt");
 	
@@ -166,15 +166,16 @@ int main(int argc, char *argv[])
 
 	unsigned int blocknum, overhead;
 	txmap block;
+	std::unordered_map<bitcoin_txid, tx *> knowns;
 
-	while (read_blockline(in, &blocknum, &overhead, &block, NULL)) {
+	while (read_blockline(in, &blocknum, &overhead, &block, &knowns, NULL)) {
 		u64 seed;
-		size_t ibltsize;
-		raw_iblt *theirs = read_iblt(in, &ibltsize, &seed);
+		size_t ibltslices;
+		raw_iblt *theirs = read_iblt(in, &ibltslices, &seed);
 
 		txmap mempool;
 		std::string peername;
-		while (read_mempool(in, &peername, &mempool, NULL)) {
+		while (read_mempool(in, &peername, &mempool, &knowns, NULL)) {
 			if (!theirs) {
 				std::cout << blocknum << "," << overhead << ",0,"
 						  << peername << ","
@@ -184,7 +185,7 @@ int main(int argc, char *argv[])
 				// Create our equivalent iblt.
 				raw_iblt ours(theirs->size(), seed, mempool);
 
-				std::cout << blocknum << "," << overhead << "," << ibltsize
+				std::cout << blocknum << "," << overhead << "," << ibltslices
 						  << "," << peername << ","
 						  << recover_block(*theirs, ours, seed, mempool, block)
 						  << std::endl;
